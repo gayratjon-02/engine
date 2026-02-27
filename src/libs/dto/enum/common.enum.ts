@@ -1,4 +1,4 @@
 export enum Message {
 	EMAIL_ALREADY_REGISTERED = 'Email already registered',
-	USER_ALREADY_EXISTS = 'User with this email already exists',
+	INVALID_EMAIL_OR_PASSWORD = 'Invalid email or password',
 }

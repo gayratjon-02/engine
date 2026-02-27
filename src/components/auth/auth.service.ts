@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -7,6 +7,7 @@ import { RegisterDto } from '../../libs/dto/user/register.dto';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
 import { AuthResponse } from 'src/libs/dto/type/user/register.type';
+import { LoginDto } from 'src/libs/dto/user/login.dto';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +17,7 @@ export class AuthService {
 		private readonly jwtService: JwtService,
 	) {}
 
+	// Register
 	public async register(input: RegisterDto): Promise<AuthResponse> {
 		console.log('auth service: register');
 		const exists = await this.userRepo.findOne({
@@ -35,6 +37,21 @@ export class AuthService {
 		});
 
 		await this.userRepo.save(user);
+
+		return this.buildAuthResponse(user);
+	}
+
+	// login
+	public async login(input: LoginDto): Promise<AuthResponse> {
+		console.log('auth service: login');
+		const user = await this.userRepo.findOne({
+			where: { email: input.email },
+		});
+
+		if (!user || !user.passwordHash) throw new UnauthorizedException(Message.INVALID_EMAIL_OR_PASSWORD);
+
+		const valid = await bcrypt.compare(input.password, user.passwordHash);
+		if (!valid) throw new UnauthorizedException(Message.INVALID_EMAIL_OR_PASSWORD);
 
 		return this.buildAuthResponse(user);
 	}

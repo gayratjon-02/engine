@@ -6,3 +6,10 @@ export interface UserResponse {
 	createdAt: Date;
 	updatedAt: Date;
 }
+
+export interface GoogleProfile {
+	googleId: string;
+	email: string;
+	name: string;
+	avatarUrl?: string;
+}

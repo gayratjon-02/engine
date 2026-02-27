@@ -8,7 +8,7 @@ import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
 import { AuthResponse } from 'src/libs/dto/type/user/register.type';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
-import { UserResponse } from 'src/libs/dto/type/user/user.type';
+import { GoogleProfile, UserResponse } from 'src/libs/dto/type/user/user.type';
 
 @Injectable()
 export class AuthService {
@@ -67,6 +67,35 @@ export class AuthService {
 		if (!user) throw new UnauthorizedException(Message.USER_NOT_FOUND);
 
 		return user;
+	}
+
+	// Google Login
+	async googleLogin(profile: GoogleProfile): Promise<AuthResponse> {
+		let user = await this.userRepo.findOne({
+			where: { googleId: profile.googleId },
+		});
+
+		if (!user) {
+			user = await this.userRepo.findOne({
+				where: { email: profile.email },
+			});
+
+			if (user) {
+				user.googleId = profile.googleId;
+				user.avatarUrl = profile.avatarUrl || user.avatarUrl;
+				await this.userRepo.save(user);
+			} else {
+				user = this.userRepo.create({
+					email: profile.email,
+					name: profile.name,
+					googleId: profile.googleId,
+					avatarUrl: profile.avatarUrl,
+				});
+				await this.userRepo.save(user);
+			}
+		}
+
+		return this.buildAuthResponse(user);
 	}
 
 	private buildAuthResponse(user: User) {

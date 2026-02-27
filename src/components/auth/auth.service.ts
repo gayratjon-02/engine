@@ -6,6 +6,7 @@ import { User } from '../../libs/entity/user.entity';
 import { RegisterDto } from '../../libs/dto/user/register.dto';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
+import { AuthResponse } from 'src/libs/dto/type/user/register.type';
 
 @Injectable()
 export class AuthService {
@@ -15,21 +16,22 @@ export class AuthService {
 		private readonly jwtService: JwtService,
 	) {}
 
-	public async register(dto: RegisterDto) {
+	public async register(input: RegisterDto): Promise<AuthResponse> {
+		console.log('auth service: register');
 		const exists = await this.userRepo.findOne({
-			where: { email: dto.email },
+			where: { email: input.email },
 		});
 
 		if (exists) {
 			throw new ConflictException(Message.EMAIL_ALREADY_REGISTERED);
 		}
 
-		const passwordHash = await bcrypt.hash(dto.password, 12);
+		const passwordHash = await bcrypt.hash(input.password, 12);
 
 		const user = this.userRepo.create({
-			email: dto.email,
+			email: input.email,
 			passwordHash,
-			name: dto.name || dto.email.split('@')[0],
+			name: input.name || input.email.split('@')[0],
 		});
 
 		await this.userRepo.save(user);

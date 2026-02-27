@@ -4,8 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User } from '../../libs/entity/user.entity';
 import { RegisterDto } from '../../libs/dto/user/register.dto';
-import { Repository } from 'typeorm';
 import { Message } from 'src/libs/dto/enum/common.enum';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class AuthService {

@@ -1,9 +1,12 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from 'src/libs/dto/user/register.dto';
 import { User } from 'src/libs/entity/user.entity';
 import { AuthResponse } from 'src/libs/dto/type/user/register.type';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { AuthMember } from './decorators/authMember.decorator';
+import { UserResponse } from 'src/libs/dto/type/user/user.type';
 
 @Controller('auth')
 export class AuthController {
@@ -21,5 +24,12 @@ export class AuthController {
 	public async login(@Body() input: LoginDto): Promise<AuthResponse> {
 		console.log('auth controller: login');
 		return this.authService.login(input);
+	}
+
+	@Get('getUser')
+	@UseGuards(AuthGuard('jwt'))
+	public async getUser(@AuthMember('id') userId: string): Promise<UserResponse> {
+		console.log('auth controller: getUser');
+		return this.authService.getUser(userId);
 	}
 }

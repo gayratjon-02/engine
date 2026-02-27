@@ -8,6 +8,7 @@ import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
 import { AuthResponse } from 'src/libs/dto/type/user/register.type';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
+import { UserResponse } from 'src/libs/dto/type/user/user.type';
 
 @Injectable()
 export class AuthService {
@@ -54,6 +55,18 @@ export class AuthService {
 		if (!valid) throw new UnauthorizedException(Message.INVALID_EMAIL_OR_PASSWORD);
 
 		return this.buildAuthResponse(user);
+	}
+
+	// getUser
+	public async getUser(userId: string): Promise<UserResponse> {
+		console.log('auth service: getUser');
+		const user = await this.userRepo.findOne({
+			where: { id: userId },
+		});
+
+		if (!user) throw new UnauthorizedException(Message.USER_NOT_FOUND);
+
+		return user;
 	}
 
 	private buildAuthResponse(user: User) {

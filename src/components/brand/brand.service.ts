@@ -80,6 +80,27 @@ export class BrandService {
 		return brand;
 	}
 
+	async deleteBrand(userId: string, brandId: string): Promise<Brand> {
+		const brand = await this.brandRepo.findOne({
+			where: { id: brandId, userId },
+		});
+
+		if (!brand) {
+			throw new NotFoundException(Message.BRAND_NOT_FOUND);
+		}
+
+		if (brand.status === BRAND_STATUS.DELETE) {
+			throw new BadRequestException(Message.BRAND_ALREADY_DELETED);
+		}
+
+		brand.status = BRAND_STATUS.DELETE;
+
+		const saved = await this.brandRepo.save(brand);
+		this.logger.log(`Brand deleted: ${saved.id} by user: ${userId}`);
+
+		return saved;
+	}
+
 	async updateBrand(userId: string, brandId: string, input: UpdateBrandDto): Promise<Brand> {
 		const brand = await this.getBrand(userId, brandId);
 

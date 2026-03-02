@@ -19,4 +19,5 @@ export enum Message {
 	BRAND_NOT_FOUND = 'Brand not found!',
 	BRAND_ALREADY_EXISTS = 'Brand with this name already exists!',
 	BRAND_LIMIT_REACHED = 'Brand limit reached for your current plan!',
+	BRAND_ALREADY_DELETED = 'Brand is already deleted!',
 }

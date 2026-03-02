@@ -30,6 +30,13 @@ export class BrandController {
 		return this.brandService.getBrand(userId, brandId);
 	}
 
+	@Post('deleteBrand/:id')
+	@UseGuards(AuthGuard)
+	async deleteBrand(@AuthMember('id') userId: string, @Param('id') brandId: string) {
+		console.log('POST: deleteBrand');
+		return this.brandService.deleteBrand(userId, brandId);
+	}
+
 	@Post('updateBrand/:id')
 	@UseGuards(AuthGuard)
 	async updateBrand(@AuthMember('id') userId: string, @Param('id') brandId: string, @Body() input: UpdateBrandDto) {

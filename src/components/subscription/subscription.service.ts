@@ -50,8 +50,14 @@ export class SubscriptionService {
 			throw new BadRequestException(Message.DOWNGRADE_NOT_ALLOWED);
 		}
 
+		const now = new Date();
+		const periodEnd = new Date(now);
+		periodEnd.setDate(periodEnd.getDate() + 30);
+
 		sub.plan = plan;
 		sub.status = PLAN_STATUS.ACTIVE;
+		sub.currentPeriodStart = now;
+		sub.currentPeriodEnd = periodEnd;
 
 		const saved = await this.subRepo.save(sub);
 		this.logger.log(`User ${userId} upgraded to ${plan}`);
@@ -64,6 +70,10 @@ export class SubscriptionService {
 
 		if (sub.plan === SUBSCRIPTION_PLAN.FREE) {
 			throw new BadRequestException('Free plan cannot be cancelled');
+		}
+
+		if (sub.status === PLAN_STATUS.CANCELLED) {
+			throw new BadRequestException('Subscription is already cancelled');
 		}
 
 		sub.status = PLAN_STATUS.CANCELLED;

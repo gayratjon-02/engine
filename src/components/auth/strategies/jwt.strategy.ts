@@ -4,7 +4,8 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../../../libs/entity/user.entity';
+import { User } from 'src/libs/entity/user.entity';
+import { Message } from 'src/libs/dto/enum/common.enum';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -16,13 +17,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 		super({
 			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
 			ignoreExpiration: false,
-			secretOrKey: config.get<string>('JWT_SECRET', 'fallback-secret'),
+			secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
 		});
 	}
 
 	async validate(payload: { sub: string; email: string }) {
 		const user = await this.userRepo.findOne({ where: { id: payload.sub } });
-		if (!user) throw new UnauthorizedException('User not found');
+		if (!user) throw new UnauthorizedException(Message.USER_NOT_FOUND);
 		return { id: user.id, email: user.email, name: user.name };
 	}
 }

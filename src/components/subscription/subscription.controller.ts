@@ -3,6 +3,7 @@ import { SubscriptionService } from './subscription.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
 import { SUBSCRIPTION_PLAN } from 'src/libs/dto/enum/sub.plan';
+import { Message } from 'src/libs/dto/enum/common.enum';
 
 const VALID_PLANS = Object.values(SUBSCRIPTION_PLAN);
 
@@ -21,7 +22,7 @@ export class SubscriptionController {
 	async upgradePlan(@AuthMember('id') userId: string, @Body('plan') plan: string) {
 		const normalized = plan?.toLowerCase() as SUBSCRIPTION_PLAN;
 		if (!VALID_PLANS.includes(normalized)) {
-			throw new BadRequestException(`Invalid plan. Valid plans: ${VALID_PLANS.join(', ')}`);
+			throw new BadRequestException(Message.INVALID_PLAN);
 		}
 		return this.subscriptionService.upgradePlan(userId, normalized);
 	}

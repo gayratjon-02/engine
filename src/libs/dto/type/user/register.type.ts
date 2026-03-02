@@ -4,6 +4,6 @@ export interface AuthResponse {
 		id: string;
 		email: string;
 		name: string;
-		avatarUrl: string;
+		avatarUrl: string | null;
 	};
 }

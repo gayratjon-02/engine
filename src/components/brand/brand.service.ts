@@ -29,9 +29,7 @@ export class BrandService {
 			});
 
 			if (existingCount >= 1) {
-				throw new BadRequestException(
-					'Free and Pro plans allow only 1 brand. Upgrade to Agency for multiple brands.',
-				);
+				throw new BadRequestException(Message.BRAND_LIMIT_REACHED);
 			}
 		}
 
@@ -89,11 +87,11 @@ export class BrandService {
 			throw new NotFoundException(Message.BRAND_NOT_FOUND);
 		}
 
-		if (brand.status === BRAND_STATUS.DELETE) {
+		if (brand.status === BRAND_STATUS.DELETED) {
 			throw new BadRequestException(Message.BRAND_ALREADY_DELETED);
 		}
 
-		brand.status = BRAND_STATUS.DELETE;
+		brand.status = BRAND_STATUS.DELETED;
 
 		const saved = await this.brandRepo.save(brand);
 		this.logger.log(`Brand deleted: ${saved.id} by user: ${userId}`);

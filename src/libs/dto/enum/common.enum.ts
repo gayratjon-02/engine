@@ -6,9 +6,12 @@ export enum Message {
 	REMOVE_FAILED = 'Remove failed!',
 
 	// Auth
+	AUTHENTICATION_REQUIRED = 'Authentication required',
 	EMAIL_ALREADY_REGISTERED = 'Email already registered',
 	INVALID_EMAIL_OR_PASSWORD = 'Invalid email or password',
 	USER_NOT_FOUND = 'User not found',
+	INSUFFICIENT_PLAN = 'Your current plan does not have access to this feature',
+	INVALID_PLAN = 'Invalid plan',
 
 	// Subscription
 	SUBSCRIPTION_NOT_FOUND = 'Subscription not found',

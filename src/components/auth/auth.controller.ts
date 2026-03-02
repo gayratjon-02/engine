@@ -6,7 +6,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { AuthMember } from './decorators/authMember.decorator';
 import { RegisterDto } from 'src/libs/dto/user/register.dto';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import type { GoogleProfile } from 'src/libs/dto/type/user/user.type';
 
 @Controller('auth')
@@ -38,10 +38,10 @@ export class AuthController {
 
 	@Get('google/callback')
 	@UseGuards(PassportAuthGuard('google'))
-	async googleCallback(@Req() req, @Res() res) {
-		const user: GoogleProfile = req.user;
+	async googleCallback(@Req() req: Request, @Res() res: Response) {
+		const user: GoogleProfile = req.user as GoogleProfile;
 		const result = await this.authService.googleLogin(user);
-		const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
-		(res as Response).redirect(`${frontendUrl}/auth/callback?token=${result.accessToken}`);
+		const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+		res.redirect(`${frontendUrl}/auth/callback?token=${result.accessToken}`);
 	}
 }

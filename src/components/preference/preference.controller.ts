@@ -11,7 +11,6 @@ export class PreferenceController {
 	@Get('getPreference/:brandId')
 	@UseGuards(AuthGuard)
 	async getPreference(@AuthMember('id') userId: string, @Param('brandId') brandId: string) {
-		console.log('GET: getPreference');
 		return this.preferenceService.getPreference(userId, brandId);
 	}
 
@@ -22,7 +21,6 @@ export class PreferenceController {
 		@Param('brandId') brandId: string,
 		@Body() input: UpdatePreferenceDto,
 	) {
-		console.log('POST: updatePreference');
 		return this.preferenceService.updatePreference(userId, brandId, input);
 	}
 }

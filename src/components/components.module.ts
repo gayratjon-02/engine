@@ -8,4 +8,3 @@ import { PreferenceModule } from './preference/preference.module';
 	imports: [AuthModule, SubscriptionModule, BrandModule, PreferenceModule],
 })
 export class ComponentsModule {}
-``

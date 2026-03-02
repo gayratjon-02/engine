@@ -2,8 +2,8 @@ import { ConflictException, Injectable, Logger, UnauthorizedException } from '@n
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User } from '../../libs/entity/user.entity';
-import { RegisterDto } from '../../libs/dto/user/register.dto';
+import { User } from 'src/libs/entity/user.entity';
+import { RegisterDto } from 'src/libs/dto/user/register.dto';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
@@ -61,7 +61,7 @@ export class AuthService {
 		return this.buildAuthResponse(user);
 	}
 
-	async getUser(userId: string) {
+	async getUser(userId: string): Promise<User> {
 		const user = await this.userRepo.findOne({ where: { id: userId } });
 		if (!user) {
 			throw new UnauthorizedException(Message.USER_NOT_FOUND);

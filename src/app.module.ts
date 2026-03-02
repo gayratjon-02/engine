@@ -6,25 +6,24 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ComponentsModule } from './components/components.module';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    //typeOrem
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DB_HOST', 'localhost'),
-        port: config.get<number>('DB_PORT', 5432),
-        username: config.get('DB_USERNAME', 'engine115'),
-        password: config.get('DB_PASSWORD', 'engine115_dev_2026'),
-        database: config.get('DB_DATABASE', 'engine115'),
-        autoLoadEntities: true,
-        synchronize: true, // Dev only — production'da false qilamiz
-      }),
-    }),
-    ComponentsModule,
-  ],
-  controllers: [AppController],
-  providers: [AppService],
+	imports: [
+		ConfigModule.forRoot({ isGlobal: true }),
+		TypeOrmModule.forRootAsync({
+			inject: [ConfigService],
+			useFactory: (config: ConfigService) => ({
+				type: 'postgres',
+				host: config.getOrThrow('DB_HOST'),
+				port: config.getOrThrow<number>('DB_PORT'),
+				username: config.getOrThrow('DB_USERNAME'),
+				password: config.getOrThrow('DB_PASSWORD'),
+				database: config.getOrThrow('DB_DATABASE'),
+				autoLoadEntities: true,
+				synchronize: true, // Dev only — production'da false qilamiz
+			}),
+		}),
+		ComponentsModule,
+	],
+	controllers: [AppController],
+	providers: [AppService],
 })
 export class AppModule {}

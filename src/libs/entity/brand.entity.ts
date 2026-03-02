@@ -8,6 +8,7 @@ import {
 	JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
+import { BRAND_STATUS } from 'src/libs/dto/enum/brand.enum';
 
 @Entity('brands')
 export class Brand {
@@ -35,6 +36,9 @@ export class Brand {
 
 	@Column({ type: 'varchar', length: 3, default: 'USD' })
 	currency: string;
+
+	@Column({ type: 'enum', enum: BRAND_STATUS, default: BRAND_STATUS.ACTIVE })
+	status: BRAND_STATUS;
 
 	@CreateDateColumn()
 	createdAt: Date;

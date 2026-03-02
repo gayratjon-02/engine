@@ -3,6 +3,7 @@ import { BrandService } from './brand.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
 import { CreateBrandDto } from 'src/libs/dto/brand/create-brand.dto';
+import { UpdateBrandDto } from 'src/libs/dto/brand/update-brand.dto';
 
 @Controller('brand')
 export class BrandController {
@@ -27,5 +28,12 @@ export class BrandController {
 	async getBrand(@AuthMember('id') userId: string, @Param('id') brandId: string) {
 		console.log('GET: getBrand');
 		return this.brandService.getBrand(userId, brandId);
+	}
+
+	@Post('updateBrand/:id')
+	@UseGuards(AuthGuard)
+	async updateBrand(@AuthMember('id') userId: string, @Param('id') brandId: string, @Body() input: UpdateBrandDto) {
+		console.log('POST: updateBrand');
+		return this.brandService.updateBrand(userId, brandId, input);
 	}
 }

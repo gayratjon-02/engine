@@ -7,6 +7,7 @@ import { SUBSCRIPTION_PLAN } from 'src/libs/dto/enum/sub.plan';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CreateBrandDto } from 'src/libs/dto/brand/create-brand.dto';
+import { UpdateBrandDto } from 'src/libs/dto/brand/update-brand.dto';
 
 @Injectable()
 export class BrandService {
@@ -77,5 +78,27 @@ export class BrandService {
 		}
 
 		return brand;
+	}
+
+	async updateBrand(userId: string, brandId: string, input: UpdateBrandDto): Promise<Brand> {
+		const brand = await this.getBrand(userId, brandId);
+
+		// Nom o'zgarsa dublikat tekshiruv
+		if (input.name && input.name !== brand.name) {
+			const exists = await this.brandRepo.findOne({
+				where: { userId, name: input.name, status: BRAND_STATUS.ACTIVE },
+			});
+
+			if (exists) {
+				throw new BadRequestException(Message.BRAND_ALREADY_EXISTS);
+			}
+		}
+
+		Object.assign(brand, input);
+
+		const saved = await this.brandRepo.save(brand);
+		this.logger.log(`Brand updated: ${saved.id} by user: ${userId}`);
+
+		return saved;
 	}
 }

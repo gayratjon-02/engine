@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from 'src/libs/entity/brand.entity';
@@ -65,5 +65,17 @@ export class BrandService {
 			where: { userId, status: BRAND_STATUS.ACTIVE },
 			order: { createdAt: 'DESC' },
 		});
+	}
+
+	async getBrand(userId: string, brandId: string): Promise<Brand> {
+		const brand = await this.brandRepo.findOne({
+			where: { id: brandId, userId, status: BRAND_STATUS.ACTIVE },
+		});
+
+		if (!brand) {
+			throw new NotFoundException(Message.BRAND_NOT_FOUND);
+		}
+
+		return brand;
 	}
 }

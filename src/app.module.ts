@@ -3,8 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthModule } from './components/auth/auth.module';
-import { SubscriptionModule } from './components/subscription/subscription.module';
+import { ComponentsModule } from './components/components.module';
 
 @Module({
   imports: [
@@ -23,8 +22,7 @@ import { SubscriptionModule } from './components/subscription/subscription.modul
         synchronize: true, // Dev only — production'da false qilamiz
       }),
     }),
-    AuthModule,
-    SubscriptionModule,
+    ComponentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

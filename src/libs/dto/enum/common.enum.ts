@@ -23,4 +23,8 @@ export enum Message {
 	BRAND_ALREADY_EXISTS = 'Brand with this name already exists!',
 	BRAND_LIMIT_REACHED = 'Brand limit reached for your current plan!',
 	BRAND_ALREADY_DELETED = 'Brand is already deleted!',
+
+	// Preference
+	PREFERENCE_NOT_FOUND = 'Preference not found!',
+	INVALID_PINNED_METRIC = 'Invalid pinned metric!',
 }

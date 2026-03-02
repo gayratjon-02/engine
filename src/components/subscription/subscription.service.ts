@@ -40,6 +40,10 @@ export class SubscriptionService {
 	async upgradePlan(userId: string, plan: SUBSCRIPTION_PLAN): Promise<Subscription> {
 		const sub = await this.getCurrentPlan(userId);
 
+		if (plan === SUBSCRIPTION_PLAN.FREE) {
+			throw new BadRequestException(Message.CANNOT_UPGRADE_TO_FREE);
+		}
+
 		if (sub.plan === plan) {
 			throw new BadRequestException(Message.ALREADY_ON_PLAN);
 		}
@@ -69,11 +73,11 @@ export class SubscriptionService {
 		const sub = await this.getCurrentPlan(userId);
 
 		if (sub.plan === SUBSCRIPTION_PLAN.FREE) {
-			throw new BadRequestException('Free plan cannot be cancelled');
+			throw new BadRequestException(Message.FREE_PLAN_CANNOT_BE_CANCELLED);
 		}
 
 		if (sub.status === PLAN_STATUS.CANCELLED) {
-			throw new BadRequestException('Subscription is already cancelled');
+			throw new BadRequestException(Message.SUBSCRIPTION_ALREADY_CANCELLED);
 		}
 
 		sub.status = PLAN_STATUS.CANCELLED;

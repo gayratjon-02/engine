@@ -14,6 +14,9 @@ export enum Message {
 	SUBSCRIPTION_NOT_FOUND = 'Subscription not found',
 	ALREADY_ON_PLAN = 'You are already on this plan',
 	DOWNGRADE_NOT_ALLOWED = 'Downgrade through API is not supported, please cancel first',
+	FREE_PLAN_CANNOT_BE_CANCELLED = 'Free plan cannot be cancelled',
+	SUBSCRIPTION_ALREADY_CANCELLED = 'Subscription is already cancelled',
+	CANNOT_UPGRADE_TO_FREE = 'Cannot upgrade to free plan',
 
 	// Brand
 	BRAND_NOT_FOUND = 'Brand not found!',

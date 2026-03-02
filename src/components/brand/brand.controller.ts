@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { BrandService } from './brand.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
@@ -13,5 +13,12 @@ export class BrandController {
 	async createBrand(@AuthMember('id') userId: string, @Body() input: CreateBrandDto) {
 		console.log('POST: createBrand');
 		return this.brandService.createBrand(userId, input);
+	}
+
+	@Get('getUserBrands')
+	@UseGuards(AuthGuard)
+	async getUserBrands(@AuthMember('id') userId: string) {
+		console.log('GET: getUserBrands');
+		return this.brandService.getUserBrands(userId);
 	}
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from 'src/libs/entity/brand.entity';
@@ -7,12 +7,6 @@ import { SUBSCRIPTION_PLAN } from 'src/libs/dto/enum/sub.plan';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CreateBrandDto } from 'src/libs/dto/brand/create-brand.dto';
-
-const BRAND_LIMITS: Record<SUBSCRIPTION_PLAN, number> = {
-	[SUBSCRIPTION_PLAN.FREE]: 1,
-	[SUBSCRIPTION_PLAN.PRO]: 5,
-	[SUBSCRIPTION_PLAN.AGENCY]: 20,
-};
 
 @Injectable()
 export class BrandService {
@@ -25,16 +19,19 @@ export class BrandService {
 	) {}
 
 	async createBrand(userId: string, input: CreateBrandDto): Promise<Brand> {
-		// 1. Plan limit tekshiruv
+		// 1. Plan limit tekshiruv — faqat Agency ko'p brand yarata oladi
 		const subscription = await this.subscriptionService.getCurrentPlan(userId);
-		const limit = BRAND_LIMITS[subscription.plan];
 
-		const currentCount = await this.brandRepo.count({
-			where: { userId, status: BRAND_STATUS.ACTIVE },
-		});
+		if (subscription.plan !== SUBSCRIPTION_PLAN.AGENCY) {
+			const existingCount = await this.brandRepo.count({
+				where: { userId, status: BRAND_STATUS.ACTIVE },
+			});
 
-		if (currentCount >= limit) {
-			throw new BadRequestException(Message.BRAND_LIMIT_REACHED);
+			if (existingCount >= 1) {
+				throw new BadRequestException(
+					'Free and Pro plans allow only 1 brand. Upgrade to Agency for multiple brands.',
+				);
+			}
 		}
 
 		// 2. Nom dublikat tekshiruv (bir user ichida)
@@ -61,5 +58,12 @@ export class BrandService {
 		this.logger.log(`Brand created: ${saved.id} by user: ${userId}`);
 
 		return saved;
+	}
+
+	async getUserBrands(userId: string): Promise<Brand[]> {
+		return await this.brandRepo.find({
+			where: { userId, status: BRAND_STATUS.ACTIVE },
+			order: { createdAt: 'DESC' },
+		});
 	}
 }

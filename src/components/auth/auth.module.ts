@@ -7,6 +7,7 @@ import { User } from '../../libs/entity/user.entity';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
 	imports: [
@@ -18,6 +19,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 				signOptions: { expiresIn: config.get('JWT_EXPIRATION', '7d') },
 			}),
 		}),
+		SubscriptionModule,
 	],
 	controllers: [AuthController],
 	providers: [AuthService, JwtStrategy, GoogleStrategy],

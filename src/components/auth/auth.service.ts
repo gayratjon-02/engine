@@ -7,6 +7,7 @@ import { RegisterDto } from '../../libs/dto/user/register.dto';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
+import { SubscriptionService } from '../subscription/subscription.service';
 import type { AuthResponse } from 'src/libs/dto/type/user/register.type';
 import type { GoogleProfile } from 'src/libs/dto/type/user/user.type';
 
@@ -18,6 +19,7 @@ export class AuthService {
 		@InjectRepository(User)
 		private readonly userRepo: Repository<User>,
 		private readonly jwtService: JwtService,
+		private readonly subscriptionService: SubscriptionService,
 	) {}
 
 	async register(input: RegisterDto): Promise<AuthResponse> {
@@ -37,6 +39,7 @@ export class AuthService {
 		});
 
 		await this.userRepo.save(user);
+		await this.subscriptionService.createFreeSubscription(user.id);
 		this.logger.log(`User registered: ${user.id}`);
 
 		return this.buildAuthResponse(user);
@@ -95,6 +98,7 @@ export class AuthService {
 				avatarUrl: profile.avatarUrl,
 			});
 			await this.userRepo.save(user);
+			await this.subscriptionService.createFreeSubscription(user.id);
 			this.logger.log(`New Google user created: ${user.id}`);
 		}
 

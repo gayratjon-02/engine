@@ -9,24 +9,25 @@ import {
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { User } from './user.entity';
+import { SUBSCRIPTION_PLAN, PLAN_STATUS } from 'src/libs/dto/enum/sub.plan';
 
 @Entity('subscriptions')
 export class Subscription {
 	@PrimaryGeneratedColumn('uuid')
 	id: string;
 
-	@Column({ type: 'uuid' })
+	@Column({ type: 'uuid', unique: true })
 	userId: string;
 
-	@OneToOne(() => User)
+	@OneToOne(() => User, { onDelete: 'CASCADE' })
 	@JoinColumn({ name: 'userId' })
 	user: User;
 
-	@Column({ type: 'varchar', length: 20, default: 'free' })
-	plan: string; // free | pro | agency
+	@Column({ type: 'enum', enum: SUBSCRIPTION_PLAN, default: SUBSCRIPTION_PLAN.FREE })
+	plan: SUBSCRIPTION_PLAN;
 
-	@Column({ type: 'varchar', length: 20, default: 'active' })
-	status: string; // active | cancelled | past_due
+	@Column({ type: 'enum', enum: PLAN_STATUS, default: PLAN_STATUS.ACTIVE })
+	status: PLAN_STATUS;
 
 	@Column({ type: 'varchar', length: 255, nullable: true })
 	@Exclude()

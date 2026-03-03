@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PlatformConnection } from 'src/libs/entity/platform-connection.entity';
@@ -7,6 +7,7 @@ import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { BrandService } from 'src/components/brand/brand.service';
 import { ConnectPlatformDto } from 'src/libs/dto/integration/connect-platform.dto';
+import { DisconnectPlatformDto } from 'src/libs/dto/integration/disconnect-platform.dto';
 import type { AllIntegrationsResponse, IntegrationStatusResponse } from 'src/libs/dto/type/integration/integration-status.type';
 
 @Injectable()
@@ -100,6 +101,36 @@ export class IntegrationsService {
 		}
 
 		return this.toSafeResponseSingle(connection);
+	}
+
+	async disconnectPlatform(brandId: string, userId: string, input: DisconnectPlatformDto): Promise<IntegrationStatusResponse> {
+		// 1. Brand egasini tekshirish
+		await this.brandService.getBrand(userId, brandId);
+
+		// 2. Connection topish
+		const connection = await this.connectionRepo.findOne({
+			where: { brandId, platform: input.platform },
+		});
+
+		if (!connection) {
+			throw new NotFoundException(Message.PLATFORM_NOT_CONNECTED);
+		}
+
+		if (connection.status === CONNECTION_STATUS.DISCONNECTED) {
+			throw new BadRequestException(Message.PLATFORM_ALREADY_DISCONNECTED);
+		}
+
+		// 3. Disconnect: status o'zgartirish, tokenlarni tozalash
+		Object.assign(connection, {
+			status: CONNECTION_STATUS.DISCONNECTED,
+			accessToken: '',
+			refreshToken: null,
+		});
+
+		const saved = await this.connectionRepo.save(connection);
+		this.logger.log(`Platform disconnected: ${input.platform} for brand: ${brandId}`);
+
+		return this.toSafeResponseSingle(saved);
 	}
 
 	private toSafeResponse(connections: PlatformConnection[]): IntegrationStatusResponse[] {

@@ -36,6 +36,8 @@ export enum Message {
 	PLATFORM_ALREADY_CONNECTED = 'This platform is already connected to this brand',
 	SHOPIFY_DOMAIN_REQUIRED = 'Shop domain is required for Shopify connections',
 	AD_ACCOUNT_ID_REQUIRED = 'Ad account ID is required for this platform',
+	PLATFORM_NOT_CONNECTED = 'This platform is not connected to this brand',
+	PLATFORM_ALREADY_DISCONNECTED = 'This platform is already disconnected',
 
 	// Role
 	FORBIDDEN_RESOURCE = 'You do not have permission to access this resource',

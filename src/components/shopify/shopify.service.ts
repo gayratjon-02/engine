@@ -1,13 +1,20 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
 import { Repository } from 'typeorm';
+import { firstValueFrom } from 'rxjs';
+import * as crypto from 'crypto';
 import { ShopifyProduct } from 'src/libs/entity/shopify-product.entity';
 import { ShopifyOrder } from 'src/libs/entity/shopify-order.entity';
 import { ShopifyCustomer } from 'src/libs/entity/shopify-customer.entity';
 import { ShopifyRefund } from 'src/libs/entity/shopify-refund.entity';
 import { ShopifyCheckout } from 'src/libs/entity/shopify-checkout.entity';
 import { ProductCost } from 'src/libs/entity/product-cost.entity';
+import { PlatformConnection } from 'src/libs/entity/platform-connection.entity';
+import { Brand } from 'src/libs/entity/brand.entity';
 import { BrandService } from 'src/components/brand/brand.service';
+import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
 import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto';
 import { GetOrdersQueryDto } from 'src/libs/dto/shopify/get-orders-query.dto';
 import { GetCustomersQueryDto } from 'src/libs/dto/shopify/get-customers-query.dto';
@@ -36,8 +43,150 @@ export class ShopifyService {
 		private readonly checkoutRepo: Repository<ShopifyCheckout>,
 		@InjectRepository(ProductCost)
 		private readonly costRepo: Repository<ProductCost>,
+		@InjectRepository(PlatformConnection)
+		private readonly connectionRepo: Repository<PlatformConnection>,
+		@InjectRepository(Brand)
+		private readonly brandRepo: Repository<Brand>,
 		private readonly brandService: BrandService,
+		private readonly configService: ConfigService,
+		private readonly httpService: HttpService,
 	) {}
+
+	// ==================== SHOPIFY OAUTH ====================
+
+	async getAuthUrl(brandId: string, userId: string, shop: string) {
+		// 1. Brand egasini tekshirish
+		await this.brandService.getBrand(userId, brandId);
+
+		// 2. Shop validate
+		if (!shop || !shop.endsWith('.myshopify.com')) {
+			throw new BadRequestException('Invalid shop domain. Must end with .myshopify.com');
+		}
+
+		// 3. Nonce yaratish (CSRF himoya)
+		const nonce = crypto.randomBytes(16).toString('hex');
+		const state = `${brandId}:${nonce}`;
+
+		// 4. Nonce'ni brand metadata'ga saqlash
+		const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+		if (!brand) throw new BadRequestException('Brand not found');
+		await this.brandRepo.update(brandId, {
+			metadata: { ...(brand.metadata || {}), shopifyNonce: nonce } as any,
+		});
+
+		// 5. OAuth URL yaratish
+		const clientId = this.configService.get('SHOPIFY_CLIENT_ID');
+		const scopes = this.configService.get('SHOPIFY_SCOPES');
+		const redirectUri = this.configService.get('SHOPIFY_REDIRECT_URI');
+
+		const authUrl =
+			`https://${shop}/admin/oauth/authorize` +
+			`?client_id=${clientId}` +
+			`&scope=${scopes}` +
+			`&redirect_uri=${encodeURIComponent(redirectUri)}` +
+			`&state=${state}`;
+
+		this.logger.log(`Shopify OAuth started for brand: ${brandId}, shop: ${shop}`);
+
+		return { url: authUrl, statusCode: 302 };
+	}
+
+	async handleCallback(query: Record<string, string>) {
+		const { code, shop, state } = query;
+		const clientSecret = this.configService.get('SHOPIFY_CLIENT_SECRET');
+
+		// 1. HMAC verify
+		if (!this.verifyHmac(query, clientSecret)) {
+			throw new UnauthorizedException('Invalid HMAC signature');
+		}
+
+		// 2. State parse
+		const [brandId, nonce] = (state || '').split(':');
+		if (!brandId || !nonce) {
+			throw new BadRequestException('Invalid state parameter');
+		}
+
+		// 3. Brand va nonce tekshirish
+		const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+		if (!brand) {
+			throw new BadRequestException('Brand not found');
+		}
+
+		if (brand.metadata?.shopifyNonce !== nonce) {
+			throw new BadRequestException('Invalid nonce — possible CSRF attack');
+		}
+
+		// 4. Code → access_token almashtirish
+		const clientId = this.configService.get('SHOPIFY_CLIENT_ID');
+
+		const { data: tokenData } = await firstValueFrom(
+			this.httpService.post(`https://${shop}/admin/oauth/access_token`, {
+				client_id: clientId,
+				client_secret: clientSecret,
+				code,
+			}),
+		);
+
+		const accessToken = tokenData.access_token;
+		if (!accessToken) {
+			throw new BadRequestException('Failed to get access token from Shopify');
+		}
+
+		// 5. platform_connections ga saqlash (upsert)
+		let connection = await this.connectionRepo.findOne({
+			where: { brandId, platform: PLATFORM.SHOPIFY },
+		});
+
+		if (connection) {
+			connection.accessToken = accessToken;
+			connection.shopDomain = shop;
+			connection.status = CONNECTION_STATUS.ACTIVE;
+			connection.lastSyncError = null as any;
+			await this.connectionRepo.save(connection);
+		} else {
+			connection = this.connectionRepo.create({
+				brandId,
+				platform: PLATFORM.SHOPIFY,
+				accessToken,
+				shopDomain: shop,
+				status: CONNECTION_STATUS.ACTIVE,
+			});
+			await this.connectionRepo.save(connection);
+		}
+
+		// 6. Brand shopifyDomain yangilash va nonce tozalash
+		await this.brandRepo.update(brandId, {
+			shopifyDomain: shop,
+			metadata: { ...(brand.metadata || {}), shopifyNonce: null } as any,
+		});
+
+		this.logger.log(`Shopify OAuth completed for brand: ${brandId}, shop: ${shop}`);
+
+		// 7. Frontend'ga redirect
+		const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+		return `${frontendUrl}/dashboard?shopify=connected&brand=${brandId}`;
+	}
+
+	private verifyHmac(query: Record<string, string>, clientSecret: string): boolean {
+		const { hmac, ...params } = query;
+		if (!hmac) return false;
+
+		// Parametrlarni alifbo tartibida saralash
+		const sortedParams = Object.keys(params)
+			.sort()
+			.map((key) => `${key}=${params[key]}`)
+			.join('&');
+
+		const computedHmac = crypto.createHmac('sha256', clientSecret).update(sortedParams).digest('hex');
+
+		try {
+			return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(computedHmac, 'hex'));
+		} catch {
+			return false;
+		}
+	}
+
+	// ==================== DATA ENDPOINTS ====================
 
 	async getProducts(brandId: string, userId: string, query: GetProductsQueryDto): Promise<PaginatedProductsResponse> {
 		// 1. Brand egasini tekshirish

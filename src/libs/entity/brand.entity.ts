@@ -43,6 +43,9 @@ export class Brand {
 	@Column({ type: 'varchar', length: 100, nullable: true })
 	industry: string;
 
+	@Column({ type: 'jsonb', nullable: true })
+	metadata: Record<string, any>;
+
 	@Column({ type: 'enum', enum: BRAND_STATUS, default: BRAND_STATUS.ACTIVE })
 	status: BRAND_STATUS;
 

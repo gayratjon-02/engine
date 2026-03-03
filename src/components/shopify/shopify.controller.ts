@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Redirect, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ShopifyService } from './shopify.service';
 import { AuthGuard } from 'src/components/auth/guards/auth.guard';
 import { AuthMember } from 'src/components/auth/decorators/authMember.decorator';
@@ -11,6 +12,27 @@ import { GetCheckoutsQueryDto } from 'src/libs/dto/shopify/get-checkouts-query.d
 @Controller('shopify')
 export class ShopifyController {
 	constructor(private readonly shopifyService: ShopifyService) {}
+
+	// ==================== SHOPIFY OAUTH ====================
+
+	@Get(':brandId/auth')
+	@UseGuards(AuthGuard)
+	@Redirect()
+	async auth(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Query('shop') shop: string,
+	) {
+		return this.shopifyService.getAuthUrl(brandId, userId, shop);
+	}
+
+	@Get('callback')
+	async callback(@Query() query: Record<string, string>, @Res() res: Response) {
+		const redirectUrl = await this.shopifyService.handleCallback(query);
+		return res.redirect(redirectUrl);
+	}
+
+	// ==================== DATA ENDPOINTS ====================
 
 	@Get(':brandId/products')
 	@UseGuards(AuthGuard)

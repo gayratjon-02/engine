@@ -1,6 +1,7 @@
-import { Controller, Get, Param, Query, Redirect, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Redirect, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { ShopifyService } from './shopify.service';
+import { ShopifySyncService } from './services/shopify-sync.service';
 import { AuthGuard } from 'src/components/auth/guards/auth.guard';
 import { AuthMember } from 'src/components/auth/decorators/authMember.decorator';
 import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto';
@@ -11,7 +12,10 @@ import { GetCheckoutsQueryDto } from 'src/libs/dto/shopify/get-checkouts-query.d
 
 @Controller('shopify')
 export class ShopifyController {
-	constructor(private readonly shopifyService: ShopifyService) {}
+	constructor(
+		private readonly shopifyService: ShopifyService,
+		private readonly shopifySyncService: ShopifySyncService,
+	) {}
 
 	// ==================== SHOPIFY OAUTH ====================
 
@@ -30,6 +34,17 @@ export class ShopifyController {
 	async callback(@Query() query: Record<string, string>, @Res() res: Response) {
 		const redirectUrl = await this.shopifyService.handleCallback(query);
 		return res.redirect(redirectUrl);
+	}
+
+	@Post(':brandId/sync')
+	@UseGuards(AuthGuard)
+	@HttpCode(200)
+	async sync(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Body() body: { resources?: string[] },
+	) {
+		return this.shopifySyncService.syncAll(brandId, userId, body?.resources);
 	}
 
 	@Get(':brandId/sync/status')

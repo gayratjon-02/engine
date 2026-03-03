@@ -4,6 +4,7 @@ import { AuthGuard } from 'src/components/auth/guards/auth.guard';
 import { AuthMember } from 'src/components/auth/decorators/authMember.decorator';
 import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto';
 import { GetOrdersQueryDto } from 'src/libs/dto/shopify/get-orders-query.dto';
+import { GetCustomersQueryDto } from 'src/libs/dto/shopify/get-customers-query.dto';
 
 @Controller('shopify')
 export class ShopifyController {
@@ -27,5 +28,15 @@ export class ShopifyController {
 		@Query() query: GetOrdersQueryDto,
 	) {
 		return this.shopifyService.getOrders(brandId, userId, query);
+	}
+
+	@Get(':brandId/customers')
+	@UseGuards(AuthGuard)
+	async getCustomers(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Query() query: GetCustomersQueryDto,
+	) {
+		return this.shopifyService.getCustomers(brandId, userId, query);
 	}
 }

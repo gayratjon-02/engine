@@ -3,12 +3,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ShopifyProduct } from 'src/libs/entity/shopify-product.entity';
 import { ShopifyOrder } from 'src/libs/entity/shopify-order.entity';
+import { ShopifyCustomer } from 'src/libs/entity/shopify-customer.entity';
 import { ProductCost } from 'src/libs/entity/product-cost.entity';
 import { BrandService } from 'src/components/brand/brand.service';
 import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto';
 import { GetOrdersQueryDto } from 'src/libs/dto/shopify/get-orders-query.dto';
+import { GetCustomersQueryDto } from 'src/libs/dto/shopify/get-customers-query.dto';
 import type { PaginatedProductsResponse, ProductResponse } from 'src/libs/dto/type/shopify/product.type';
 import type { PaginatedOrdersResponse, OrderResponse } from 'src/libs/dto/type/shopify/order.type';
+import type { PaginatedCustomersResponse, CustomerResponse } from 'src/libs/dto/type/shopify/customer.type';
 
 @Injectable()
 export class ShopifyService {
@@ -19,6 +22,8 @@ export class ShopifyService {
 		private readonly productRepo: Repository<ShopifyProduct>,
 		@InjectRepository(ShopifyOrder)
 		private readonly orderRepo: Repository<ShopifyOrder>,
+		@InjectRepository(ShopifyCustomer)
+		private readonly customerRepo: Repository<ShopifyCustomer>,
 		@InjectRepository(ProductCost)
 		private readonly costRepo: Repository<ProductCost>,
 		private readonly brandService: BrandService,
@@ -144,6 +149,85 @@ export class ShopifyService {
 				total,
 				totalPages: Math.ceil(total / limit),
 			},
+		};
+	}
+
+	async getCustomers(brandId: string, userId: string, query: GetCustomersQueryDto): Promise<PaginatedCustomersResponse> {
+		// 1. Brand egasini tekshirish
+		await this.brandService.getBrand(userId, brandId);
+
+		// 2. Query builder
+		const qb = this.customerRepo
+			.createQueryBuilder('c')
+			.where('c.brandId = :brandId', { brandId });
+
+		// 3. Search filter
+		if (query.search) {
+			qb.andWhere('(c.email ILIKE :search OR c.firstName ILIKE :search OR c.lastName ILIKE :search)', {
+				search: `%${query.search}%`,
+			});
+		}
+
+		// 4. Min orders filter (returning = minOrders=2)
+		if (query.minOrders) {
+			qb.andWhere('c.totalOrders >= :minOrders', { minOrders: query.minOrders });
+		}
+
+		// 5. Summary hisoblash (pagination dan oldin, filterlar bilan)
+		const summaryRaw = await qb
+			.clone()
+			.select('COUNT(*)', 'totalCustomers')
+			.addSelect('COUNT(CASE WHEN c.totalOrders = 1 THEN 1 END)', 'newCustomers')
+			.addSelect('COUNT(CASE WHEN c.totalOrders > 1 THEN 1 END)', 'returningCustomers')
+			.addSelect('AVG(c.totalSpent)', 'avgLtv')
+			.getRawOne();
+
+		const summary = {
+			totalCustomers: parseInt(summaryRaw.totalCustomers) || 0,
+			newCustomers: parseInt(summaryRaw.newCustomers) || 0,
+			returningCustomers: parseInt(summaryRaw.returningCustomers) || 0,
+			avgLtv: Math.round((parseFloat(summaryRaw.avgLtv) || 0) * 100) / 100,
+		};
+
+		// 6. Sorting
+		const sortBy = query.sortBy || 'lastOrderDate';
+		const sortOrder = query.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+		qb.orderBy(`c.${sortBy}`, sortOrder);
+
+		// 7. Pagination
+		const page = query.page || 1;
+		const limit = query.limit || 50;
+		const total = await qb.getCount();
+
+		const customers = await qb
+			.skip((page - 1) * limit)
+			.take(limit)
+			.getMany();
+
+		return {
+			customers: customers.map((c) => this.toCustomerResponse(c)),
+			summary,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+			},
+		};
+	}
+
+	private toCustomerResponse(customer: ShopifyCustomer): CustomerResponse {
+		return {
+			id: customer.id,
+			shopifyCustomerId: customer.shopifyCustomerId,
+			email: customer.email || null,
+			firstName: customer.firstName || null,
+			lastName: customer.lastName || null,
+			firstOrderDate: customer.firstOrderDate,
+			firstProductId: customer.firstProductId || null,
+			totalOrders: customer.totalOrders,
+			totalSpent: customer.totalSpent,
+			lastOrderDate: customer.lastOrderDate || null,
 		};
 	}
 

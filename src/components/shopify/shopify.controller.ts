@@ -8,7 +8,7 @@ import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto
 export class ShopifyController {
 	constructor(private readonly shopifyService: ShopifyService) {}
 
-	@Get('getProducts/:brandId')
+	@Get(':brandId/products')
 	@UseGuards(AuthGuard)
 	async getProducts(
 		@AuthMember('id') userId: string,

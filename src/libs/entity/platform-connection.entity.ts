@@ -28,7 +28,7 @@ export class PlatformConnection {
 
 	@Column({ type: 'text' })
 	@Exclude()
-	accessToken: string; // ENCRYPTED
+	accessToken: string; // ENCRYPTED — AES-256
 
 	@Column({ type: 'text', nullable: true })
 	@Exclude()
@@ -38,7 +38,10 @@ export class PlatformConnection {
 	shopDomain: string; // Shopify: mystore.myshopify.com
 
 	@Column({ type: 'varchar', length: 255, nullable: true })
-	adAccountId: string; // Meta/Google/TikTok
+	adAccountId: string; // Meta/Google/TikTok ad account ID
+
+	@Column({ type: 'varchar', length: 255, nullable: true })
+	externalAccountName: string; // Tashqi account nomi (ko'rsatish uchun)
 
 	@Column({ type: 'timestamp', nullable: true })
 	tokenExpiresAt: Date;
@@ -46,11 +49,14 @@ export class PlatformConnection {
 	@Column({ type: 'enum', enum: CONNECTION_STATUS, default: CONNECTION_STATUS.ACTIVE })
 	status: CONNECTION_STATUS;
 
-	@Column({ type: 'text', nullable: true })
-	scopes: string;
-
 	@Column({ type: 'timestamp', nullable: true })
 	lastSyncedAt: Date;
+
+	@Column({ type: 'text', nullable: true })
+	lastSyncError: string; // Oxirgi xatolik xabari
+
+	@Column({ type: 'jsonb', nullable: true })
+	metadata: Record<string, any>; // Platform-specific qo'shimcha ma'lumotlar
 
 	@CreateDateColumn()
 	createdAt: Date;

@@ -31,6 +31,9 @@ export enum Message {
 	PREFERENCE_NOT_FOUND = 'Preference not found!',
 	INVALID_PINNED_METRIC = 'Invalid pinned metric!',
 
+	// Integration
+	BRAND_ACCESS_DENIED = 'You do not have access to this brand',
+
 	// Role
 	FORBIDDEN_RESOURCE = 'You do not have permission to access this resource',
 }

@@ -4,8 +4,9 @@ import { SubscriptionModule } from './subscription/subscription.module';
 import { BrandModule } from './brand/brand.module';
 import { PreferenceModule } from './preference/preference.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { ShopifyModule } from './shopify/shopify.module';
 
 @Module({
-	imports: [AuthModule, SubscriptionModule, BrandModule, PreferenceModule, IntegrationsModule],
+	imports: [AuthModule, SubscriptionModule, BrandModule, PreferenceModule, IntegrationsModule, ShopifyModule],
 })
 export class ComponentsModule {}

@@ -33,6 +33,9 @@ export enum Message {
 
 	// Integration
 	BRAND_ACCESS_DENIED = 'You do not have access to this brand',
+	PLATFORM_ALREADY_CONNECTED = 'This platform is already connected to this brand',
+	SHOPIFY_DOMAIN_REQUIRED = 'Shop domain is required for Shopify connections',
+	AD_ACCOUNT_ID_REQUIRED = 'Ad account ID is required for this platform',
 
 	// Role
 	FORBIDDEN_RESOURCE = 'You do not have permission to access this resource',

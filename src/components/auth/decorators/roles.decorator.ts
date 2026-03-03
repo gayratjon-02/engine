@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { SUBSCRIPTION_PLAN } from 'src/libs/dto/enum/sub.plan';
+import { USER_ROLE } from 'src/libs/dto/enum/user.enum';
 
-export const PLAN_KEY = 'requiredPlan';
-export const PlanRequired = (plan: SUBSCRIPTION_PLAN) => SetMetadata(PLAN_KEY, plan);
+export const ROLES_KEY = 'roles';
+export const Roles = (...roles: USER_ROLE[]) => SetMetadata(ROLES_KEY, roles);

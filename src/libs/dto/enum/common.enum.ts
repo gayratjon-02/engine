@@ -30,4 +30,7 @@ export enum Message {
 	// Preference
 	PREFERENCE_NOT_FOUND = 'Preference not found!',
 	INVALID_PINNED_METRIC = 'Invalid pinned metric!',
+
+	// Role
+	FORBIDDEN_RESOURCE = 'You do not have permission to access this resource',
 }

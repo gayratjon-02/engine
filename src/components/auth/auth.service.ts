@@ -106,7 +106,7 @@ export class AuthService {
 	}
 
 	private buildAuthResponse(user: User): AuthResponse {
-		const accessToken = this.jwtService.sign({ sub: user.id, email: user.email });
+		const accessToken = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
 
 		return {
 			accessToken,
@@ -115,6 +115,7 @@ export class AuthService {
 				email: user.email,
 				name: user.name,
 				avatarUrl: user.avatarUrl,
+				role: user.role,
 			},
 		};
 	}

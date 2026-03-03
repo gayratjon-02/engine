@@ -46,7 +46,12 @@ export class ShopifyService {
 		// 2. Query builder — LEFT JOIN product_costs for COGS
 		const qb = this.productRepo
 			.createQueryBuilder('p')
-			.leftJoinAndMapOne('p.cost', ProductCost, 'c', 'c.shopifyProductId = p.shopifyProductId AND c.brandId = p.brandId')
+			.leftJoinAndMapOne(
+				'p.cost',
+				ProductCost,
+				'c',
+				'c.shopifyProductId = p.shopifyProductId AND c.brandId = p.brandId',
+			)
 			.where('p.brandId = :brandId', { brandId });
 
 		// 3. Optional filters
@@ -86,9 +91,7 @@ export class ShopifyService {
 		await this.brandService.getBrand(userId, brandId);
 
 		// 2. Query builder
-		const qb = this.orderRepo
-			.createQueryBuilder('o')
-			.where('o.brandId = :brandId', { brandId });
+		const qb = this.orderRepo.createQueryBuilder('o').where('o.brandId = :brandId', { brandId });
 
 		// 3. Date filter
 		if (query.startDate) {
@@ -162,14 +165,16 @@ export class ShopifyService {
 		};
 	}
 
-	async getCustomers(brandId: string, userId: string, query: GetCustomersQueryDto): Promise<PaginatedCustomersResponse> {
+	async getCustomers(
+		brandId: string,
+		userId: string,
+		query: GetCustomersQueryDto,
+	): Promise<PaginatedCustomersResponse> {
 		// 1. Brand egasini tekshirish
 		await this.brandService.getBrand(userId, brandId);
 
 		// 2. Query builder
-		const qb = this.customerRepo
-			.createQueryBuilder('c')
-			.where('c.brandId = :brandId', { brandId });
+		const qb = this.customerRepo.createQueryBuilder('c').where('c.brandId = :brandId', { brandId });
 
 		// 3. Search filter
 		if (query.search) {
@@ -257,7 +262,9 @@ export class ShopifyService {
 			.addSelect('AVG(r.amount)', 'avgRefundAmount')
 			.where('r.brandId = :brandId', { brandId })
 			.andWhere(query.startDate ? 'r.refundDate >= :startDate' : '1=1', { startDate: query.startDate })
-			.andWhere(query.endDate ? 'r.refundDate <= :endDate' : '1=1', { endDate: query.endDate ? `${query.endDate}T23:59:59.999Z` : undefined })
+			.andWhere(query.endDate ? 'r.refundDate <= :endDate' : '1=1', {
+				endDate: query.endDate ? `${query.endDate}T23:59:59.999Z` : undefined,
+			})
 			.andWhere(query.reason ? 'r.reason = :reason' : '1=1', { reason: query.reason })
 			.getRawOne();
 
@@ -292,14 +299,16 @@ export class ShopifyService {
 		};
 	}
 
-	async getCheckouts(brandId: string, userId: string, query: GetCheckoutsQueryDto): Promise<PaginatedCheckoutsResponse> {
+	async getCheckouts(
+		brandId: string,
+		userId: string,
+		query: GetCheckoutsQueryDto,
+	): Promise<PaginatedCheckoutsResponse> {
 		// 1. Brand egasini tekshirish
 		await this.brandService.getBrand(userId, brandId);
 
 		// 2. Query builder
-		const qb = this.checkoutRepo
-			.createQueryBuilder('c')
-			.where('c.brandId = :brandId', { brandId });
+		const qb = this.checkoutRepo.createQueryBuilder('c').where('c.brandId = :brandId', { brandId });
 
 		// 3. Date filter
 		if (query.startDate) {
@@ -315,9 +324,7 @@ export class ShopifyService {
 		}
 
 		// 5. Summary — status filtersiz, faqat date filter bilan (umumiy ko'rinish)
-		const summaryQb = this.checkoutRepo
-			.createQueryBuilder('c')
-			.where('c.brandId = :brandId', { brandId });
+		const summaryQb = this.checkoutRepo.createQueryBuilder('c').where('c.brandId = :brandId', { brandId });
 
 		if (query.startDate) {
 			summaryQb.andWhere('c.checkoutDate >= :startDate', { startDate: query.startDate });
@@ -342,9 +349,7 @@ export class ShopifyService {
 			totalCheckouts,
 			completedCheckouts,
 			abandonedCheckouts,
-			abandonmentRate: totalCheckouts > 0
-				? Math.round((1 - completedCheckouts / totalCheckouts) * 100 * 100) / 100
-				: 0,
+			abandonmentRate: totalCheckouts > 0 ? Math.round((1 - completedCheckouts / totalCheckouts) * 100 * 100) / 100 : 0,
 			abandonedRevenue: Math.round(abandonedRevenue * 100) / 100,
 		};
 

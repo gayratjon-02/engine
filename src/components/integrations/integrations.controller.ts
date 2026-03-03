@@ -17,14 +17,22 @@ export class IntegrationsController {
 
 	@Post('connect/:brandId')
 	@UseGuards(AuthGuard)
-	async connect(@AuthMember('id') userId: string, @Param('brandId') brandId: string, @Body() input: ConnectPlatformDto) {
+	async connect(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Body() input: ConnectPlatformDto,
+	) {
 		return this.integrationsService.connectPlatform(brandId, userId, input);
 	}
 
 	@Post('disconnect/:brandId')
 	@HttpCode(HttpStatus.OK)
 	@UseGuards(AuthGuard)
-	async disconnect(@AuthMember('id') userId: string, @Param('brandId') brandId: string, @Body() input: DisconnectPlatformDto) {
+	async disconnect(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Body() input: DisconnectPlatformDto,
+	) {
 		return this.integrationsService.disconnectPlatform(brandId, userId, input);
 	}
 }

@@ -9,6 +9,15 @@ import { PnlModule } from './pnl/pnl.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
-	imports: [AuthModule, SubscriptionModule, BrandModule, PreferenceModule, IntegrationsModule, ShopifyModule, PnlModule, DashboardModule],
+	imports: [
+		AuthModule,
+		SubscriptionModule,
+		BrandModule,
+		PreferenceModule,
+		IntegrationsModule,
+		ShopifyModule,
+		PnlModule,
+		DashboardModule,
+	],
 })
 export class ComponentsModule {}

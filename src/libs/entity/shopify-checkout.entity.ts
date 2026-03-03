@@ -1,12 +1,4 @@
-import {
-	Entity,
-	PrimaryGeneratedColumn,
-	Column,
-	CreateDateColumn,
-	ManyToOne,
-	JoinColumn,
-	Index,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Brand } from './brand.entity';
 
 @Entity('shopify_checkouts')

@@ -115,9 +115,7 @@ export class BrandService {
 			}
 		}
 
-		const updateData = Object.fromEntries(
-			Object.entries(input).filter(([_, v]) => v !== undefined),
-		);
+		const updateData = Object.fromEntries(Object.entries(input).filter(([_, v]) => v !== undefined));
 		Object.assign(brand, updateData);
 
 		const saved = await this.brandRepo.save(brand);

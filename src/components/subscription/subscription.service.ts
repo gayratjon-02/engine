@@ -89,7 +89,12 @@ export class SubscriptionService {
 		return saved;
 	}
 
-	async handleStripeWebhook(userId: string, plan: SUBSCRIPTION_PLAN, status: PLAN_STATUS, stripeData: { customerId: string; subscriptionId: string; periodStart: Date; periodEnd: Date }): Promise<Subscription> {
+	async handleStripeWebhook(
+		userId: string,
+		plan: SUBSCRIPTION_PLAN,
+		status: PLAN_STATUS,
+		stripeData: { customerId: string; subscriptionId: string; periodStart: Date; periodEnd: Date },
+	): Promise<Subscription> {
 		let sub = await this.subRepo.findOne({ where: { userId } });
 
 		if (!sub) {

@@ -8,7 +8,10 @@ import { Message } from 'src/libs/dto/enum/common.enum';
 import { BrandService } from 'src/components/brand/brand.service';
 import { ConnectPlatformDto } from 'src/libs/dto/integration/connect-platform.dto';
 import { DisconnectPlatformDto } from 'src/libs/dto/integration/disconnect-platform.dto';
-import type { AllIntegrationsResponse, IntegrationStatusResponse } from 'src/libs/dto/type/integration/integration-status.type';
+import type {
+	AllIntegrationsResponse,
+	IntegrationStatusResponse,
+} from 'src/libs/dto/type/integration/integration-status.type';
 
 @Injectable()
 export class IntegrationsService {
@@ -32,14 +35,16 @@ export class IntegrationsService {
 
 		const integrations = this.toSafeResponse(connections);
 
-		const connectedCount = connections.filter(
-			(conn) => conn.status === CONNECTION_STATUS.ACTIVE,
-		).length;
+		const connectedCount = connections.filter((conn) => conn.status === CONNECTION_STATUS.ACTIVE).length;
 
 		return { connectedCount, integrations };
 	}
 
-	async connectPlatform(brandId: string, userId: string, input: ConnectPlatformDto): Promise<IntegrationStatusResponse> {
+	async connectPlatform(
+		brandId: string,
+		userId: string,
+		input: ConnectPlatformDto,
+	): Promise<IntegrationStatusResponse> {
 		// 1. Brand egasini tekshirish
 		await this.brandService.getBrand(userId, brandId);
 
@@ -103,7 +108,11 @@ export class IntegrationsService {
 		return this.toSafeResponseSingle(connection);
 	}
 
-	async disconnectPlatform(brandId: string, userId: string, input: DisconnectPlatformDto): Promise<IntegrationStatusResponse> {
+	async disconnectPlatform(
+		brandId: string,
+		userId: string,
+		input: DisconnectPlatformDto,
+	): Promise<IntegrationStatusResponse> {
 		// 1. Brand egasini tekshirish
 		await this.brandService.getBrand(userId, brandId);
 

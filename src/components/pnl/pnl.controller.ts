@@ -12,11 +12,7 @@ export class PnlController {
 	@Post(':brandId/costs')
 	@HttpCode(HttpStatus.OK)
 	@UseGuards(AuthGuard)
-	async updateCosts(
-		@AuthMember('id') userId: string,
-		@Param('brandId') brandId: string,
-		@Body() dto: UpdateCostsDto,
-	) {
+	async updateCosts(@AuthMember('id') userId: string, @Param('brandId') brandId: string, @Body() dto: UpdateCostsDto) {
 		return this.pnlService.updateCosts(brandId, userId, dto);
 	}
 

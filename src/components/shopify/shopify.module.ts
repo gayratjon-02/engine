@@ -11,7 +11,17 @@ import { ShopifyController } from './shopify.controller';
 import { BrandModule } from 'src/components/brand/brand.module';
 
 @Module({
-	imports: [TypeOrmModule.forFeature([ShopifyProduct, ShopifyOrder, ShopifyCustomer, ShopifyRefund, ShopifyCheckout, ProductCost]), BrandModule],
+	imports: [
+		TypeOrmModule.forFeature([
+			ShopifyProduct,
+			ShopifyOrder,
+			ShopifyCustomer,
+			ShopifyRefund,
+			ShopifyCheckout,
+			ProductCost,
+		]),
+		BrandModule,
+	],
 	controllers: [ShopifyController],
 	providers: [ShopifyService],
 	exports: [ShopifyService],

@@ -186,6 +186,49 @@ export class ShopifyService {
 		}
 	}
 
+	// ==================== SYNC STATUS ====================
+
+	async getSyncStatus(brandId: string, userId: string) {
+		// 1. Brand egasini tekshirish
+		await this.brandService.getBrand(userId, brandId);
+
+		// 2. Shopify connection olish
+		const connection = await this.connectionRepo.findOne({
+			where: { brandId, platform: PLATFORM.SHOPIFY },
+		});
+
+		if (!connection || connection.status === CONNECTION_STATUS.DISCONNECTED) {
+			return {
+				connected: false,
+				platform: 'shopify',
+				shopDomain: null,
+				status: null,
+				lastSyncedAt: null,
+				lastSyncError: null,
+				counts: null,
+			};
+		}
+
+		// 3. Har bir jadvaldan COUNT olish (parallel)
+		const [orders, customers, products, refunds, checkouts] = await Promise.all([
+			this.orderRepo.count({ where: { brandId } }),
+			this.customerRepo.count({ where: { brandId } }),
+			this.productRepo.count({ where: { brandId } }),
+			this.refundRepo.count({ where: { brandId } }),
+			this.checkoutRepo.count({ where: { brandId } }),
+		]);
+
+		return {
+			connected: true,
+			platform: 'shopify',
+			shopDomain: connection.shopDomain,
+			status: connection.status,
+			lastSyncedAt: connection.lastSyncedAt,
+			lastSyncError: connection.lastSyncError,
+			counts: { orders, customers, products, refunds, checkouts },
+		};
+	}
+
 	// ==================== DATA ENDPOINTS ====================
 
 	async getProducts(brandId: string, userId: string, query: GetProductsQueryDto): Promise<PaginatedProductsResponse> {

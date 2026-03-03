@@ -32,6 +32,15 @@ export class ShopifyController {
 		return res.redirect(redirectUrl);
 	}
 
+	@Get(':brandId/sync/status')
+	@UseGuards(AuthGuard)
+	async getSyncStatus(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+	) {
+		return this.shopifyService.getSyncStatus(brandId, userId);
+	}
+
 	// ==================== DATA ENDPOINTS ====================
 
 	@Get(':brandId/products')

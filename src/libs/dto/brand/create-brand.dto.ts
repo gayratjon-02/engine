@@ -14,6 +14,15 @@ export class CreateBrandDto {
 	@IsOptional()
 	shopifyDomain?: string;
 
+	@IsUrl()
+	@IsOptional()
+	website?: string;
+
+	@IsString()
+	@IsOptional()
+	@MaxLength(100)
+	industry?: string;
+
 	@IsTimeZone()
 	@IsOptional()
 	timezone?: string;

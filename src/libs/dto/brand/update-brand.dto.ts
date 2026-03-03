@@ -1,5 +1,4 @@
 import { IsOptional, IsString, IsTimeZone, IsUrl, Length, Matches, MaxLength } from 'class-validator';
-
 export class UpdateBrandDto {
 	@IsString()
 	@IsOptional()
@@ -13,6 +12,15 @@ export class UpdateBrandDto {
 	@Matches(/^[a-zA-Z0-9-]+\.myshopify\.com$/, { message: 'Invalid Shopify domain format' })
 	@IsOptional()
 	shopifyDomain?: string;
+
+	@IsUrl()
+	@IsOptional()
+	website?: string;
+
+	@IsString()
+	@IsOptional()
+	@MaxLength(100)
+	industry?: string;
 
 	@IsTimeZone()
 	@IsOptional()

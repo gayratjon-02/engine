@@ -37,6 +37,12 @@ export class Brand {
 	@Column({ type: 'varchar', length: 3, default: 'USD' })
 	currency: string;
 
+	@Column({ type: 'text', nullable: true })
+	website: string;
+
+	@Column({ type: 'varchar', length: 100, nullable: true })
+	industry: string;
+
 	@Column({ type: 'enum', enum: BRAND_STATUS, default: BRAND_STATUS.ACTIVE })
 	status: BRAND_STATUS;
 

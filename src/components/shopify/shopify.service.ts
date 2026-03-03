@@ -5,16 +5,19 @@ import { ShopifyProduct } from 'src/libs/entity/shopify-product.entity';
 import { ShopifyOrder } from 'src/libs/entity/shopify-order.entity';
 import { ShopifyCustomer } from 'src/libs/entity/shopify-customer.entity';
 import { ShopifyRefund } from 'src/libs/entity/shopify-refund.entity';
+import { ShopifyCheckout } from 'src/libs/entity/shopify-checkout.entity';
 import { ProductCost } from 'src/libs/entity/product-cost.entity';
 import { BrandService } from 'src/components/brand/brand.service';
 import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto';
 import { GetOrdersQueryDto } from 'src/libs/dto/shopify/get-orders-query.dto';
 import { GetCustomersQueryDto } from 'src/libs/dto/shopify/get-customers-query.dto';
 import { GetRefundsQueryDto } from 'src/libs/dto/shopify/get-refunds-query.dto';
+import { GetCheckoutsQueryDto } from 'src/libs/dto/shopify/get-checkouts-query.dto';
 import type { PaginatedProductsResponse, ProductResponse } from 'src/libs/dto/type/shopify/product.type';
 import type { PaginatedOrdersResponse, OrderResponse } from 'src/libs/dto/type/shopify/order.type';
 import type { PaginatedCustomersResponse, CustomerResponse } from 'src/libs/dto/type/shopify/customer.type';
 import type { PaginatedRefundsResponse, RefundResponse } from 'src/libs/dto/type/shopify/refund.type';
+import type { PaginatedCheckoutsResponse, CheckoutResponse } from 'src/libs/dto/type/shopify/checkout.type';
 
 @Injectable()
 export class ShopifyService {
@@ -29,6 +32,8 @@ export class ShopifyService {
 		private readonly customerRepo: Repository<ShopifyCustomer>,
 		@InjectRepository(ShopifyRefund)
 		private readonly refundRepo: Repository<ShopifyRefund>,
+		@InjectRepository(ShopifyCheckout)
+		private readonly checkoutRepo: Repository<ShopifyCheckout>,
 		@InjectRepository(ProductCost)
 		private readonly costRepo: Repository<ProductCost>,
 		private readonly brandService: BrandService,
@@ -284,6 +289,99 @@ export class ShopifyService {
 				total,
 				totalPages: Math.ceil(total / limit),
 			},
+		};
+	}
+
+	async getCheckouts(brandId: string, userId: string, query: GetCheckoutsQueryDto): Promise<PaginatedCheckoutsResponse> {
+		// 1. Brand egasini tekshirish
+		await this.brandService.getBrand(userId, brandId);
+
+		// 2. Query builder
+		const qb = this.checkoutRepo
+			.createQueryBuilder('c')
+			.where('c.brandId = :brandId', { brandId });
+
+		// 3. Date filter
+		if (query.startDate) {
+			qb.andWhere('c.checkoutDate >= :startDate', { startDate: query.startDate });
+		}
+		if (query.endDate) {
+			qb.andWhere('c.checkoutDate <= :endDate', { endDate: `${query.endDate}T23:59:59.999Z` });
+		}
+
+		// 4. Status filter
+		if (query.status) {
+			qb.andWhere('c.status = :status', { status: query.status });
+		}
+
+		// 5. Summary — status filtersiz, faqat date filter bilan (umumiy ko'rinish)
+		const summaryQb = this.checkoutRepo
+			.createQueryBuilder('c')
+			.where('c.brandId = :brandId', { brandId });
+
+		if (query.startDate) {
+			summaryQb.andWhere('c.checkoutDate >= :startDate', { startDate: query.startDate });
+		}
+		if (query.endDate) {
+			summaryQb.andWhere('c.checkoutDate <= :endDate', { endDate: `${query.endDate}T23:59:59.999Z` });
+		}
+
+		const summaryRaw = await summaryQb
+			.select('COUNT(*)', 'totalCheckouts')
+			.addSelect("COUNT(CASE WHEN c.status = 'complete' THEN 1 END)", 'completedCheckouts')
+			.addSelect("COUNT(CASE WHEN c.status = 'abandoned' THEN 1 END)", 'abandonedCheckouts')
+			.addSelect("SUM(CASE WHEN c.status = 'abandoned' THEN c.totalPrice ELSE 0 END)", 'abandonedRevenue')
+			.getRawOne();
+
+		const totalCheckouts = parseInt(summaryRaw.totalCheckouts) || 0;
+		const completedCheckouts = parseInt(summaryRaw.completedCheckouts) || 0;
+		const abandonedCheckouts = parseInt(summaryRaw.abandonedCheckouts) || 0;
+		const abandonedRevenue = parseFloat(summaryRaw.abandonedRevenue) || 0;
+
+		const summary = {
+			totalCheckouts,
+			completedCheckouts,
+			abandonedCheckouts,
+			abandonmentRate: totalCheckouts > 0
+				? Math.round((1 - completedCheckouts / totalCheckouts) * 100 * 100) / 100
+				: 0,
+			abandonedRevenue: Math.round(abandonedRevenue * 100) / 100,
+		};
+
+		// 6. Default sort: checkoutDate DESC
+		qb.orderBy('c.checkoutDate', 'DESC');
+
+		// 7. Pagination
+		const page = query.page || 1;
+		const limit = query.limit || 50;
+		const total = await qb.getCount();
+
+		const checkouts = await qb
+			.skip((page - 1) * limit)
+			.take(limit)
+			.getMany();
+
+		return {
+			checkouts: checkouts.map((c) => this.toCheckoutResponse(c)),
+			summary,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+			},
+		};
+	}
+
+	private toCheckoutResponse(checkout: ShopifyCheckout): CheckoutResponse {
+		return {
+			id: checkout.id,
+			shopifyCheckoutId: checkout.shopifyCheckoutId,
+			customerEmail: checkout.customerEmail || null,
+			totalPrice: checkout.totalPrice,
+			status: checkout.status,
+			checkoutDate: checkout.checkoutDate,
+			completedAt: checkout.completedAt || null,
 		};
 	}
 

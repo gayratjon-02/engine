@@ -6,6 +6,7 @@ import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto
 import { GetOrdersQueryDto } from 'src/libs/dto/shopify/get-orders-query.dto';
 import { GetCustomersQueryDto } from 'src/libs/dto/shopify/get-customers-query.dto';
 import { GetRefundsQueryDto } from 'src/libs/dto/shopify/get-refunds-query.dto';
+import { GetCheckoutsQueryDto } from 'src/libs/dto/shopify/get-checkouts-query.dto';
 
 @Controller('shopify')
 export class ShopifyController {
@@ -49,5 +50,15 @@ export class ShopifyController {
 		@Query() query: GetRefundsQueryDto,
 	) {
 		return this.shopifyService.getRefunds(brandId, userId, query);
+	}
+
+	@Get(':brandId/checkouts')
+	@UseGuards(AuthGuard)
+	async getCheckouts(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Query() query: GetCheckoutsQueryDto,
+	) {
+		return this.shopifyService.getCheckouts(brandId, userId, query);
 	}
 }

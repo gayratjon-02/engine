@@ -5,8 +5,9 @@ import { BrandModule } from './brand/brand.module';
 import { PreferenceModule } from './preference/preference.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { ShopifyModule } from './shopify/shopify.module';
+import { PnlModule } from './pnl/pnl.module';
 
 @Module({
-	imports: [AuthModule, SubscriptionModule, BrandModule, PreferenceModule, IntegrationsModule, ShopifyModule],
+	imports: [AuthModule, SubscriptionModule, BrandModule, PreferenceModule, IntegrationsModule, ShopifyModule, PnlModule],
 })
 export class ComponentsModule {}

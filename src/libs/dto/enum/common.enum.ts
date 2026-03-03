@@ -39,6 +39,10 @@ export enum Message {
 	PLATFORM_NOT_CONNECTED = 'This platform is not connected to this brand',
 	PLATFORM_ALREADY_DISCONNECTED = 'This platform is already disconnected',
 
+	// P&L
+	PRODUCT_NOT_FOUND_FOR_BRAND = 'Product not found for this brand',
+	COSTS_ARRAY_EMPTY = 'Costs array must not be empty',
+
 	// Role
 	FORBIDDEN_RESOURCE = 'You do not have permission to access this resource',
 }

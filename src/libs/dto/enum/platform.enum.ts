@@ -1,4 +1,4 @@
-export enum PLATFORM_TYPE {
+export enum PLATFORM {
 	SHOPIFY = 'shopify',
 	META = 'meta',
 	GOOGLE = 'google',
@@ -9,4 +9,5 @@ export enum CONNECTION_STATUS {
 	ACTIVE = 'active',
 	EXPIRED = 'expired',
 	DISCONNECTED = 'disconnected',
+	ERROR = 'error',
 }

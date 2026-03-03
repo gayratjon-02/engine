@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Brand } from './brand.entity';
-import { PLATFORM_TYPE, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
+import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
 
 @Entity('platform_connections')
 export class PlatformConnection {
@@ -23,8 +23,8 @@ export class PlatformConnection {
 	@JoinColumn({ name: 'brandId' })
 	brand: Brand;
 
-	@Column({ type: 'enum', enum: PLATFORM_TYPE })
-	platform: PLATFORM_TYPE;
+	@Column({ type: 'enum', enum: PLATFORM })
+	platform: PLATFORM;
 
 	@Column({ type: 'text' })
 	@Exclude()

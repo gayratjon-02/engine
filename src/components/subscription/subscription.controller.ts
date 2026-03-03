@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Post, Body, UseGuards } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
@@ -18,6 +18,7 @@ export class SubscriptionController {
 	}
 
 	@Post('upgradePlan')
+	@HttpCode(HttpStatus.OK)
 	@UseGuards(AuthGuard)
 	async upgradePlan(@AuthMember('id') userId: string, @Body('plan') plan: string) {
 		const normalized = plan?.toLowerCase() as SUBSCRIPTION_PLAN;
@@ -28,6 +29,7 @@ export class SubscriptionController {
 	}
 
 	@Post('cancelPlan')
+	@HttpCode(HttpStatus.OK)
 	@UseGuards(AuthGuard)
 	async cancelSubscription(@AuthMember('id') userId: string) {
 		return this.subscriptionService.cancelSubscription(userId);

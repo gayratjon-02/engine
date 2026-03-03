@@ -20,6 +20,7 @@ export class SubscriptionService {
 			plan: SUBSCRIPTION_PLAN.FREE,
 			status: PLAN_STATUS.ACTIVE,
 		});
+		sub.currentPeriodStart = new Date();
 
 		const saved = await this.subRepo.save(sub);
 		this.logger.log(`Free subscription created for user: ${userId}`);

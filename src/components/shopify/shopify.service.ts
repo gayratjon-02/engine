@@ -4,14 +4,17 @@ import { Repository } from 'typeorm';
 import { ShopifyProduct } from 'src/libs/entity/shopify-product.entity';
 import { ShopifyOrder } from 'src/libs/entity/shopify-order.entity';
 import { ShopifyCustomer } from 'src/libs/entity/shopify-customer.entity';
+import { ShopifyRefund } from 'src/libs/entity/shopify-refund.entity';
 import { ProductCost } from 'src/libs/entity/product-cost.entity';
 import { BrandService } from 'src/components/brand/brand.service';
 import { GetProductsQueryDto } from 'src/libs/dto/shopify/get-products-query.dto';
 import { GetOrdersQueryDto } from 'src/libs/dto/shopify/get-orders-query.dto';
 import { GetCustomersQueryDto } from 'src/libs/dto/shopify/get-customers-query.dto';
+import { GetRefundsQueryDto } from 'src/libs/dto/shopify/get-refunds-query.dto';
 import type { PaginatedProductsResponse, ProductResponse } from 'src/libs/dto/type/shopify/product.type';
 import type { PaginatedOrdersResponse, OrderResponse } from 'src/libs/dto/type/shopify/order.type';
 import type { PaginatedCustomersResponse, CustomerResponse } from 'src/libs/dto/type/shopify/customer.type';
+import type { PaginatedRefundsResponse, RefundResponse } from 'src/libs/dto/type/shopify/refund.type';
 
 @Injectable()
 export class ShopifyService {
@@ -24,6 +27,8 @@ export class ShopifyService {
 		private readonly orderRepo: Repository<ShopifyOrder>,
 		@InjectRepository(ShopifyCustomer)
 		private readonly customerRepo: Repository<ShopifyCustomer>,
+		@InjectRepository(ShopifyRefund)
+		private readonly refundRepo: Repository<ShopifyRefund>,
 		@InjectRepository(ProductCost)
 		private readonly costRepo: Repository<ProductCost>,
 		private readonly brandService: BrandService,
@@ -213,6 +218,87 @@ export class ShopifyService {
 				total,
 				totalPages: Math.ceil(total / limit),
 			},
+		};
+	}
+
+	async getRefunds(brandId: string, userId: string, query: GetRefundsQueryDto): Promise<PaginatedRefundsResponse> {
+		// 1. Brand egasini tekshirish
+		await this.brandService.getBrand(userId, brandId);
+
+		// 2. Query builder — LEFT JOIN order for orderNumber & customerEmail
+		const qb = this.refundRepo
+			.createQueryBuilder('r')
+			.leftJoinAndSelect('r.order', 'o')
+			.where('r.brandId = :brandId', { brandId });
+
+		// 3. Date filter
+		if (query.startDate) {
+			qb.andWhere('r.refundDate >= :startDate', { startDate: query.startDate });
+		}
+		if (query.endDate) {
+			qb.andWhere('r.refundDate <= :endDate', { endDate: `${query.endDate}T23:59:59.999Z` });
+		}
+
+		// 4. Reason filter
+		if (query.reason) {
+			qb.andWhere('r.reason = :reason', { reason: query.reason });
+		}
+
+		// 5. Summary hisoblash (pagination dan oldin, filterlar bilan)
+		const summaryRaw = await this.refundRepo
+			.createQueryBuilder('r')
+			.select('SUM(r.amount)', 'totalRefunds')
+			.addSelect('COUNT(*)', 'refundCount')
+			.addSelect('AVG(r.amount)', 'avgRefundAmount')
+			.where('r.brandId = :brandId', { brandId })
+			.andWhere(query.startDate ? 'r.refundDate >= :startDate' : '1=1', { startDate: query.startDate })
+			.andWhere(query.endDate ? 'r.refundDate <= :endDate' : '1=1', { endDate: query.endDate ? `${query.endDate}T23:59:59.999Z` : undefined })
+			.andWhere(query.reason ? 'r.reason = :reason' : '1=1', { reason: query.reason })
+			.getRawOne();
+
+		const summary = {
+			totalRefunds: Math.round((parseFloat(summaryRaw.totalRefunds) || 0) * 100) / 100,
+			refundCount: parseInt(summaryRaw.refundCount) || 0,
+			avgRefundAmount: Math.round((parseFloat(summaryRaw.avgRefundAmount) || 0) * 100) / 100,
+		};
+
+		// 6. Default sort: refundDate DESC
+		qb.orderBy('r.refundDate', 'DESC');
+
+		// 7. Pagination
+		const page = query.page || 1;
+		const limit = query.limit || 50;
+		const total = await qb.getCount();
+
+		const refunds = await qb
+			.skip((page - 1) * limit)
+			.take(limit)
+			.getMany();
+
+		return {
+			refunds: refunds.map((r) => this.toRefundResponse(r)),
+			summary,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+			},
+		};
+	}
+
+	private toRefundResponse(refund: ShopifyRefund): RefundResponse {
+		return {
+			id: refund.id,
+			shopifyRefundId: refund.shopifyRefundId,
+			orderNumber: refund.order?.orderNumber || null,
+			customerEmail: refund.order?.customerEmail || null,
+			amount: refund.amount,
+			reason: refund.reason || null,
+			note: refund.note || null,
+			refundDate: refund.refundDate,
+			refundLineItems: refund.refundLineItems || null,
+			createdAt: refund.createdAt,
 		};
 	}
 

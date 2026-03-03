@@ -48,6 +48,8 @@ export class BrandService {
 			name: input.name,
 			logoUrl: input.logoUrl || null,
 			shopifyDomain: input.shopifyDomain || null,
+			website: input.website || null,
+			industry: input.industry || null,
 			timezone: input.timezone || 'UTC',
 			currency: input.currency || 'USD',
 			status: BRAND_STATUS.ACTIVE,
@@ -113,7 +115,10 @@ export class BrandService {
 			}
 		}
 
-		Object.assign(brand, input);
+		const updateData = Object.fromEntries(
+			Object.entries(input).filter(([_, v]) => v !== undefined),
+		);
+		Object.assign(brand, updateData);
 
 		const saved = await this.brandRepo.save(brand);
 		this.logger.log(`Brand updated: ${saved.id} by user: ${userId}`);

@@ -10,6 +10,7 @@ import {
 import { Exclude } from 'class-transformer';
 import { Brand } from './brand.entity';
 import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
+import { tokenTransformer } from 'src/libs/config/token.transformer';
 
 @Entity('platform_connections')
 export class PlatformConnection {
@@ -26,13 +27,13 @@ export class PlatformConnection {
 	@Column({ type: 'enum', enum: PLATFORM })
 	platform: PLATFORM;
 
-	@Column({ type: 'text' })
+	@Column({ type: 'text', transformer: tokenTransformer })
 	@Exclude()
-	accessToken: string; // ENCRYPTED — AES-256
+	accessToken: string; // ENCRYPTED — AES-256-GCM
 
-	@Column({ type: 'text', nullable: true })
+	@Column({ type: 'text', nullable: true, transformer: tokenTransformer })
 	@Exclude()
-	refreshToken: string; // ENCRYPTED
+	refreshToken: string; // ENCRYPTED — AES-256-GCM
 
 	@Column({ type: 'varchar', length: 255, nullable: true })
 	shopDomain: string; // Shopify: mystore.myshopify.com

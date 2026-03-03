@@ -123,7 +123,7 @@ export class IntegrationsService {
 		// 3. Disconnect: status o'zgartirish, tokenlarni tozalash
 		Object.assign(connection, {
 			status: CONNECTION_STATUS.DISCONNECTED,
-			accessToken: '',
+			accessToken: null,
 			refreshToken: null,
 		});
 

@@ -27,7 +27,7 @@ export class PlatformConnection {
 	@Column({ type: 'enum', enum: PLATFORM })
 	platform: PLATFORM;
 
-	@Column({ type: 'text', transformer: tokenTransformer })
+	@Column({ type: 'text', nullable: true, transformer: tokenTransformer })
 	@Exclude()
 	accessToken: string; // ENCRYPTED — AES-256-GCM
 

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
@@ -12,6 +12,8 @@ import { MetaAdCreative } from 'src/libs/entity/meta-ad-creative.entity';
 import { MetaAdDailyStats } from 'src/libs/entity/meta-ad-daily-stats.entity';
 import { BrandService } from 'src/components/brand/brand.service';
 import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
+import { GetCampaignsQueryDto } from 'src/libs/dto/meta/get-campaigns-query.dto';
+import type { CampaignResponse, CampaignStats, PaginatedCampaignsResponse } from 'src/libs/dto/type/meta/campaign.type';
 
 @Injectable()
 export class MetaService {
@@ -200,6 +202,153 @@ export class MetaService {
 
 		const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
 		return `${frontendUrl}/settings?meta=connected&brand=${brandId}`;
+	}
+
+	// ==================== CAMPAIGNS ====================
+
+	async getCampaigns(
+		brandId: string,
+		userId: string,
+		query: GetCampaignsQueryDto,
+	): Promise<PaginatedCampaignsResponse> {
+		await this.brandService.getBrand(userId, brandId);
+
+		const qb = this.campaignRepo
+			.createQueryBuilder('campaign')
+			.where('campaign.brandId = :brandId', { brandId });
+
+		if (query.status) {
+			qb.andWhere('campaign.status = :status', { status: query.status });
+		}
+
+		if (query.search) {
+			qb.andWhere('campaign.name ILIKE :search', { search: `%${query.search}%` });
+		}
+
+		const total = await qb.getCount();
+
+		const sortBy = query.sortBy || 'name';
+		const sortOrder = (query.sortOrder || 'ASC') as 'ASC' | 'DESC';
+
+		if (sortBy !== 'spend') {
+			const sortColumn = ['name', 'status', 'createdAt'].includes(sortBy)
+				? `campaign.${sortBy}`
+				: 'campaign.name';
+			qb.orderBy(sortColumn, sortOrder);
+		}
+
+		const page = query.page || 1;
+		const limit = Math.min(query.limit || 20, 100);
+		qb.skip((page - 1) * limit).take(limit);
+
+		const campaigns = await qb.getMany();
+
+		const includeStats = query.includeStats !== 'false';
+		let data: CampaignResponse[];
+
+		if (includeStats && campaigns.length > 0) {
+			const campaignIds = campaigns.map((c) => c.metaCampaignId);
+
+			const statsQb = this.dailyStatsRepo
+				.createQueryBuilder('stats')
+				.select('stats.metaCampaignId', 'campaignId')
+				.addSelect('SUM(stats.spend)', 'totalSpend')
+				.addSelect('SUM(stats.impressions)', 'totalImpressions')
+				.addSelect('SUM(stats.clicks)', 'totalClicks')
+				.addSelect('SUM(stats.linkClicks)', 'totalLinkClicks')
+				.addSelect('SUM(stats.purchases)', 'totalPurchases')
+				.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+				.where('stats.brandId = :brandId', { brandId })
+				.andWhere('stats.metaCampaignId IN (:...campaignIds)', { campaignIds })
+				.groupBy('stats.metaCampaignId');
+
+			if (query.startDate) {
+				statsQb.andWhere('stats.date >= :startDate', { startDate: query.startDate });
+			}
+			if (query.endDate) {
+				statsQb.andWhere('stats.date <= :endDate', { endDate: query.endDate });
+			}
+
+			const statsRaw = await statsQb.getRawMany();
+
+			const statsMap = new Map<string, CampaignStats>();
+			for (const row of statsRaw) {
+				const spend = parseFloat(row.totalSpend) || 0;
+				const impressions = parseInt(row.totalImpressions) || 0;
+				const clicks = parseInt(row.totalClicks) || 0;
+				const linkClicks = parseInt(row.totalLinkClicks) || 0;
+				const purchases = parseInt(row.totalPurchases) || 0;
+				const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+				statsMap.set(row.campaignId, {
+					totalSpend: parseFloat(spend.toFixed(2)),
+					totalImpressions: impressions,
+					totalClicks: clicks,
+					totalLinkClicks: linkClicks,
+					totalPurchases: purchases,
+					totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+					cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+					cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+					ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+					roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+					costPerPurchase: purchases > 0 ? parseFloat((spend / purchases).toFixed(2)) : 0,
+				});
+			}
+
+			const defaultStats: CampaignStats = {
+				totalSpend: 0,
+				totalImpressions: 0,
+				totalClicks: 0,
+				totalLinkClicks: 0,
+				totalPurchases: 0,
+				totalPurchaseValue: 0,
+				cpc: 0,
+				cpm: 0,
+				ctr: 0,
+				roas: 0,
+				costPerPurchase: 0,
+			};
+
+			data = campaigns.map((c) => ({
+				...this.toCampaignResponse(c),
+				stats: statsMap.get(c.metaCampaignId) || defaultStats,
+			}));
+
+			if (sortBy === 'spend') {
+				data.sort((a, b) => {
+					const diff = (a.stats?.totalSpend || 0) - (b.stats?.totalSpend || 0);
+					return sortOrder === 'DESC' ? -diff : diff;
+				});
+			}
+		} else {
+			data = campaigns.map((c) => this.toCampaignResponse(c));
+		}
+
+		return {
+			data,
+			meta: {
+				total,
+				page,
+				limit,
+				totalPages: Math.ceil(total / limit),
+			},
+		};
+	}
+
+	private toCampaignResponse(campaign: MetaCampaign): CampaignResponse {
+		return {
+			id: campaign.id,
+			metaCampaignId: campaign.metaCampaignId,
+			name: campaign.name,
+			status: campaign.status,
+			objective: campaign.objective || null,
+			dailyBudget: campaign.dailyBudget || null,
+			lifetimeBudget: campaign.lifetimeBudget || null,
+			buyingType: campaign.buyingType || null,
+			startTime: campaign.startTime || null,
+			stopTime: campaign.stopTime || null,
+			createdAt: campaign.createdAt,
+		};
 	}
 
 	// ==================== META SYNC ====================

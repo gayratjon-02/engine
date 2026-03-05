@@ -3,10 +3,11 @@ import type { Response } from 'express';
 import { MetaService } from './meta.service';
 import { AuthGuard } from 'src/components/auth/guards/auth.guard';
 import { AuthMember } from 'src/components/auth/decorators/authMember.decorator';
+import { GetCampaignsQueryDto } from 'src/libs/dto/meta/get-campaigns-query.dto';
 
 @Controller('meta')
 export class MetaController {
-	constructor(private readonly metaService: MetaService) {}
+	constructor(private readonly metaService: MetaService) { }
 
 	// ==================== META OAUTH ====================
 
@@ -24,6 +25,18 @@ export class MetaController {
 	async callback(@Query() query: Record<string, string>, @Res() res: Response) {
 		const redirectUrl = await this.metaService.handleCallback(query);
 		return res.redirect(redirectUrl);
+	}
+
+	// ==================== META DATA ====================
+
+	@Get(':brandId/campaigns')
+	@UseGuards(AuthGuard)
+	async getCampaigns(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Query() query: GetCampaignsQueryDto,
+	) {
+		return this.metaService.getCampaigns(brandId, userId, query);
 	}
 
 	// ==================== META SYNC ====================

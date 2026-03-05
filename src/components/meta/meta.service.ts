@@ -13,7 +13,9 @@ import { MetaAdDailyStats } from 'src/libs/entity/meta-ad-daily-stats.entity';
 import { BrandService } from 'src/components/brand/brand.service';
 import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
 import { GetCampaignsQueryDto } from 'src/libs/dto/meta/get-campaigns-query.dto';
+import { GetAdSetsQueryDto } from 'src/libs/dto/meta/get-adsets-query.dto';
 import type { CampaignResponse, CampaignStats, PaginatedCampaignsResponse } from 'src/libs/dto/type/meta/campaign.type';
+import type { AdSetResponse, PaginatedAdSetsResponse } from 'src/libs/dto/type/meta/adset.type';
 
 @Injectable()
 export class MetaService {
@@ -348,6 +350,176 @@ export class MetaService {
 			startTime: campaign.startTime || null,
 			stopTime: campaign.stopTime || null,
 			createdAt: campaign.createdAt,
+		};
+	}
+
+	// ==================== AD SETS ====================
+
+	async getAdSets(
+		brandId: string,
+		userId: string,
+		query: GetAdSetsQueryDto,
+	): Promise<PaginatedAdSetsResponse> {
+		await this.brandService.getBrand(userId, brandId);
+
+		const qb = this.adSetRepo
+			.createQueryBuilder('adset')
+			.where('adset.brandId = :brandId', { brandId });
+
+		if (query.campaignId) {
+			qb.andWhere('adset.metaCampaignId = :campaignId', { campaignId: query.campaignId });
+		}
+
+		if (query.status) {
+			qb.andWhere('adset.status = :status', { status: query.status });
+		}
+
+		if (query.search) {
+			qb.andWhere('adset.name ILIKE :search', { search: `%${query.search}%` });
+		}
+
+		const total = await qb.getCount();
+
+		const sortBy = query.sortBy || 'name';
+		const sortOrder = (query.sortOrder || 'ASC') as 'ASC' | 'DESC';
+
+		if (sortBy !== 'spend') {
+			const sortColumn = ['name', 'status', 'createdAt'].includes(sortBy)
+				? `adset.${sortBy}`
+				: 'adset.name';
+			qb.orderBy(sortColumn, sortOrder);
+		}
+
+		const page = query.page || 1;
+		const limit = Math.min(query.limit || 20, 100);
+		qb.skip((page - 1) * limit).take(limit);
+
+		const adSets = await qb.getMany();
+
+		// Campaign nomlarini olish
+		const campaignNameMap = new Map<string, string>();
+		if (adSets.length > 0) {
+			const campaignIds = [...new Set(adSets.map((a) => a.metaCampaignId))];
+			const campaigns = await this.campaignRepo
+				.createQueryBuilder('c')
+				.select(['c.metaCampaignId', 'c.name'])
+				.where('c.brandId = :brandId', { brandId })
+				.andWhere('c.metaCampaignId IN (:...campaignIds)', { campaignIds })
+				.getMany();
+
+			for (const c of campaigns) {
+				campaignNameMap.set(c.metaCampaignId, c.name);
+			}
+		}
+
+		const includeStats = query.includeStats !== 'false';
+		let data: AdSetResponse[];
+
+		if (includeStats && adSets.length > 0) {
+			const adSetIds = adSets.map((a) => a.metaAdSetId);
+
+			const statsQb = this.dailyStatsRepo
+				.createQueryBuilder('stats')
+				.select('stats.metaAdSetId', 'adSetId')
+				.addSelect('SUM(stats.spend)', 'totalSpend')
+				.addSelect('SUM(stats.impressions)', 'totalImpressions')
+				.addSelect('SUM(stats.clicks)', 'totalClicks')
+				.addSelect('SUM(stats.linkClicks)', 'totalLinkClicks')
+				.addSelect('SUM(stats.purchases)', 'totalPurchases')
+				.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+				.where('stats.brandId = :brandId', { brandId })
+				.andWhere('stats.metaAdSetId IN (:...adSetIds)', { adSetIds })
+				.groupBy('stats.metaAdSetId');
+
+			if (query.startDate) {
+				statsQb.andWhere('stats.date >= :startDate', { startDate: query.startDate });
+			}
+			if (query.endDate) {
+				statsQb.andWhere('stats.date <= :endDate', { endDate: query.endDate });
+			}
+
+			const statsRaw = await statsQb.getRawMany();
+
+			const statsMap = new Map<string, CampaignStats>();
+			for (const row of statsRaw) {
+				const spend = parseFloat(row.totalSpend) || 0;
+				const impressions = parseInt(row.totalImpressions) || 0;
+				const clicks = parseInt(row.totalClicks) || 0;
+				const linkClicks = parseInt(row.totalLinkClicks) || 0;
+				const purchases = parseInt(row.totalPurchases) || 0;
+				const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+				statsMap.set(row.adSetId, {
+					totalSpend: parseFloat(spend.toFixed(2)),
+					totalImpressions: impressions,
+					totalClicks: clicks,
+					totalLinkClicks: linkClicks,
+					totalPurchases: purchases,
+					totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+					cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+					cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+					ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+					roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+					costPerPurchase: purchases > 0 ? parseFloat((spend / purchases).toFixed(2)) : 0,
+				});
+			}
+
+			const defaultStats: CampaignStats = {
+				totalSpend: 0,
+				totalImpressions: 0,
+				totalClicks: 0,
+				totalLinkClicks: 0,
+				totalPurchases: 0,
+				totalPurchaseValue: 0,
+				cpc: 0,
+				cpm: 0,
+				ctr: 0,
+				roas: 0,
+				costPerPurchase: 0,
+			};
+
+			data = adSets.map((a) => ({
+				...this.toAdSetResponse(a, campaignNameMap),
+				stats: statsMap.get(a.metaAdSetId) || defaultStats,
+			}));
+
+			if (sortBy === 'spend') {
+				data.sort((a, b) => {
+					const diff = (a.stats?.totalSpend || 0) - (b.stats?.totalSpend || 0);
+					return sortOrder === 'DESC' ? -diff : diff;
+				});
+			}
+		} else {
+			data = adSets.map((a) => this.toAdSetResponse(a, campaignNameMap));
+		}
+
+		return {
+			data,
+			meta: {
+				total,
+				page,
+				limit,
+				totalPages: Math.ceil(total / limit),
+			},
+		};
+	}
+
+	private toAdSetResponse(adSet: MetaAdSet, campaignNameMap: Map<string, string>): AdSetResponse {
+		return {
+			id: adSet.id,
+			metaAdSetId: adSet.metaAdSetId,
+			metaCampaignId: adSet.metaCampaignId,
+			campaignName: campaignNameMap.get(adSet.metaCampaignId) || null,
+			name: adSet.name,
+			status: adSet.status,
+			dailyBudget: adSet.dailyBudget || null,
+			lifetimeBudget: adSet.lifetimeBudget || null,
+			optimizationGoal: adSet.optimizationGoal || null,
+			bidStrategy: adSet.bidStrategy || null,
+			targeting: adSet.targeting || null,
+			startTime: adSet.startTime || null,
+			stopTime: adSet.stopTime || null,
+			createdAt: adSet.createdAt,
 		};
 	}
 

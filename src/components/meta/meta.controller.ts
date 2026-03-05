@@ -4,6 +4,7 @@ import { MetaService } from './meta.service';
 import { AuthGuard } from 'src/components/auth/guards/auth.guard';
 import { AuthMember } from 'src/components/auth/decorators/authMember.decorator';
 import { GetCampaignsQueryDto } from 'src/libs/dto/meta/get-campaigns-query.dto';
+import { GetAdSetsQueryDto } from 'src/libs/dto/meta/get-adsets-query.dto';
 
 @Controller('meta')
 export class MetaController {
@@ -37,6 +38,16 @@ export class MetaController {
 		@Query() query: GetCampaignsQueryDto,
 	) {
 		return this.metaService.getCampaigns(brandId, userId, query);
+	}
+
+	@Get(':brandId/adsets')
+	@UseGuards(AuthGuard)
+	async getAdSets(
+		@AuthMember('id') userId: string,
+		@Param('brandId') brandId: string,
+		@Query() query: GetAdSetsQueryDto,
+	) {
+		return this.metaService.getAdSets(brandId, userId, query);
 	}
 
 	// ==================== META SYNC ====================

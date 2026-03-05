@@ -6,6 +6,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { AuthMember } from './decorators/authMember.decorator';
 import { RegisterDto } from 'src/libs/dto/user/register.dto';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
+import { UpdateUserDto } from 'src/libs/dto/user/update-user.dto';
 import type { Request, Response } from 'express';
 import type { GoogleProfile } from 'src/libs/dto/type/user/user.type';
 
@@ -31,6 +32,13 @@ export class AuthController {
 	@UseGuards(AuthGuard)
 	async getUser(@AuthMember('id') userId: string) {
 		return this.authService.getUser(userId);
+	}
+
+	@Post('updateUser')
+	@HttpCode(HttpStatus.OK)
+	@UseGuards(AuthGuard)
+	async updateUser(@AuthMember('id') userId: string, @Body() input: UpdateUserDto) {
+		return this.authService.updateUser(userId, input);
 	}
 
 	@Get('google')

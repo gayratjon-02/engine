@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -7,6 +7,7 @@ import { RegisterDto } from 'src/libs/dto/user/register.dto';
 import { Message } from 'src/libs/dto/enum/common.enum';
 import { Repository } from 'typeorm';
 import { LoginDto } from 'src/libs/dto/user/login.dto';
+import { UpdateUserDto } from 'src/libs/dto/user/update-user.dto';
 import { SubscriptionService } from '../subscription/subscription.service';
 import type { AuthResponse } from 'src/libs/dto/type/user/register.type';
 import type { GoogleProfile } from 'src/libs/dto/type/user/user.type';
@@ -67,6 +68,28 @@ export class AuthService {
 			throw new UnauthorizedException(Message.USER_NOT_FOUND);
 		}
 
+		return user;
+	}
+
+	async updateUser(userId: string, input: UpdateUserDto): Promise<User> {
+		const user = await this.userRepo.findOne({ where: { id: userId } });
+		if (!user) {
+			throw new UnauthorizedException(Message.USER_NOT_FOUND);
+		}
+
+		if (input.name !== undefined) {
+			const trimmed = input.name.trim();
+			if (!trimmed) {
+				throw new BadRequestException(Message.UPDATE_FAILED);
+			}
+			user.name = trimmed;
+		}
+
+		if (input.avatarUrl !== undefined) {
+			user.avatarUrl = input.avatarUrl;
+		}
+
+		await this.userRepo.save(user);
 		return user;
 	}
 

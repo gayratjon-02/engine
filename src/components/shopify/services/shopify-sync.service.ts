@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { Repository } from 'typeorm';
 import { ShopifyProduct } from 'src/libs/entity/shopify-product.entity';
@@ -29,6 +30,7 @@ export class ShopifySyncService {
 		private readonly connectionRepo: Repository<PlatformConnection>,
 		private readonly brandService: BrandService,
 		private readonly httpService: HttpService,
+		private readonly configService: ConfigService,
 	) {}
 
 	// ==================== MAIN SYNC ====================
@@ -49,11 +51,18 @@ export class ShopifySyncService {
 		}
 
 		const shopDomain = connection.shopDomain;
-		const accessToken = connection.accessToken;
+		// DEV: SHOPIFY_DEV_ACCESS_TOKEN mavjud bo'lsa uni ishlatish, bo'lmasa connection'dan olish
+		const devToken = this.configService.get('SHOPIFY_DEV_ACCESS_TOKEN');
+		const accessToken = devToken || connection.accessToken;
 
 		if (!accessToken || !shopDomain) {
 			throw new BadRequestException('Invalid Shopify connection. Please reconnect.');
 		}
+
+		// DEBUG: Token va domain tekshirish
+		console.log('Shop domain:', shopDomain);
+		console.log('Access token (first 10 chars):', accessToken?.substring(0, 10));
+		console.log('Access token length:', accessToken?.length);
 
 		// 3. Qaysi resource'larni sync qilish
 		const syncResources = resources || ['products', 'orders', 'customers'];
@@ -97,8 +106,9 @@ export class ShopifySyncService {
 				results,
 				duration: `${duration}s`,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			// 7. Error — xatoni saqlash
+			console.error('Shopify sync error:', error.response?.status, error.response?.data);
 			await this.connectionRepo.update(connection.id, {
 				lastSyncError: error.message || 'Unknown sync error',
 			});
@@ -122,6 +132,10 @@ export class ShopifySyncService {
 
 		let currentParams: Record<string, any> | undefined = { ...params, limit };
 
+		console.log(`[shopifyGetAll] URL: ${url}`);
+		console.log(`[shopifyGetAll] Token (first 10): ${accessToken?.substring(0, 10)}`);
+		console.log(`[shopifyGetAll] dataKey: ${dataKey}, params:`, currentParams);
+
 		while (url) {
 			try {
 				const response = await this.httpService.axiosRef.get(url, {
@@ -131,6 +145,10 @@ export class ShopifySyncService {
 					},
 					params: currentParams,
 				});
+
+				console.log(`[shopifyGetAll] Response status: ${response.status}`);
+				console.log(`[shopifyGetAll] Response keys:`, Object.keys(response.data));
+				console.log(`[shopifyGetAll] Items in "${dataKey}": ${response.data[dataKey]?.length ?? 'KEY NOT FOUND'}`);
 
 				const items = response.data[dataKey] || [];
 				allItems = [...allItems, ...items];
@@ -145,7 +163,8 @@ export class ShopifySyncService {
 				} else {
 					url = null;
 				}
-			} catch (error) {
+			} catch (error: any) {
+				console.error('Shopify API error:', error.response?.status, error.response?.data);
 				if (error.response?.status === 401) {
 					throw new UnauthorizedException('Shopify access token expired. Please reconnect.');
 				}
@@ -166,9 +185,8 @@ export class ShopifySyncService {
 			updated = 0,
 			errors = 0;
 
-		const products = await this.shopifyGetAll<any>(shopDomain, accessToken, 'products', 'products', {
-			status: 'any',
-		});
+		const products = await this.shopifyGetAll<any>(shopDomain, accessToken, 'products', 'products', {});
+		console.log('Products from Shopify:', products.length);
 
 		for (const product of products) {
 			try {
@@ -195,7 +213,7 @@ export class ShopifySyncService {
 					await this.productRepo.save(this.productRepo.create(productData));
 					created++;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Product sync error [${product.id}]: ${error.message}`);
 				errors++;
 			}
@@ -211,9 +229,8 @@ export class ShopifySyncService {
 			updated = 0,
 			errors = 0;
 
-		const orders = await this.shopifyGetAll<any>(shopDomain, accessToken, 'orders', 'orders', {
-			status: 'any',
-		});
+		const orders = await this.shopifyGetAll<any>(shopDomain, accessToken, 'orders', 'orders', {});
+		console.log('Orders from Shopify:', orders.length);
 
 		for (const order of orders) {
 			try {
@@ -306,7 +323,7 @@ export class ShopifySyncService {
 
 					created++;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Order sync error [${order.id}]: ${error.message}`);
 				errors++;
 			}
@@ -323,6 +340,7 @@ export class ShopifySyncService {
 			errors = 0;
 
 		const customers = await this.shopifyGetAll<any>(shopDomain, accessToken, 'customers', 'customers', {});
+		console.log('Customers from Shopify:', customers.length);
 
 		for (const customer of customers) {
 			try {
@@ -349,7 +367,7 @@ export class ShopifySyncService {
 					await this.customerRepo.save(this.customerRepo.create(customerData));
 					created++;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Customer sync error [${customer.id}]: ${error.message}`);
 				errors++;
 			}

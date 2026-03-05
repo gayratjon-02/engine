@@ -14,8 +14,10 @@ import { BrandService } from 'src/components/brand/brand.service';
 import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
 import { GetCampaignsQueryDto } from 'src/libs/dto/meta/get-campaigns-query.dto';
 import { GetAdSetsQueryDto } from 'src/libs/dto/meta/get-adsets-query.dto';
+import { GetCreativesQueryDto } from 'src/libs/dto/meta/get-creatives-query.dto';
 import type { CampaignResponse, CampaignStats, PaginatedCampaignsResponse } from 'src/libs/dto/type/meta/campaign.type';
 import type { AdSetResponse, PaginatedAdSetsResponse } from 'src/libs/dto/type/meta/adset.type';
+import type { CreativeResponse, PaginatedCreativesResponse } from 'src/libs/dto/type/meta/creative.type';
 
 @Injectable()
 export class MetaService {
@@ -520,6 +522,231 @@ export class MetaService {
 			startTime: adSet.startTime || null,
 			stopTime: adSet.stopTime || null,
 			createdAt: adSet.createdAt,
+		};
+	}
+
+	// ==================== CREATIVES ====================
+
+	async getCreatives(
+		brandId: string,
+		userId: string,
+		query: GetCreativesQueryDto,
+	): Promise<PaginatedCreativesResponse> {
+		await this.brandService.getBrand(userId, brandId);
+
+		const qb = this.creativeRepo
+			.createQueryBuilder('creative')
+			.where('creative.brandId = :brandId', { brandId });
+
+		if (query.campaignId) {
+			qb.andWhere('creative.metaCampaignId = :campaignId', { campaignId: query.campaignId });
+		}
+
+		if (query.adSetId) {
+			qb.andWhere('creative.metaAdSetId = :adSetId', { adSetId: query.adSetId });
+		}
+
+		if (query.status) {
+			qb.andWhere('creative.status = :status', { status: query.status });
+		}
+
+		if (query.format) {
+			qb.andWhere('creative.format = :format', { format: query.format });
+		}
+
+		if (query.search) {
+			qb.andWhere('(creative.name ILIKE :search OR creative.headline ILIKE :search)', {
+				search: `%${query.search}%`,
+			});
+		}
+
+		if (query.hasAiScore === 'true') {
+			qb.andWhere('creative.aiScore IS NOT NULL');
+		} else if (query.hasAiScore === 'false') {
+			qb.andWhere('creative.aiScore IS NULL');
+		}
+
+		const total = await qb.getCount();
+
+		const sortBy = query.sortBy || 'name';
+		const sortOrder = (query.sortOrder || 'ASC') as 'ASC' | 'DESC';
+		const inMemorySortFields = ['spend', 'roas'];
+
+		if (!inMemorySortFields.includes(sortBy)) {
+			const validColumns: Record<string, string> = {
+				name: 'creative.name',
+				status: 'creative.status',
+				format: 'creative.format',
+				aiScore: 'creative.aiScore',
+				createdAt: 'creative.createdAt',
+			};
+			const sortColumn = validColumns[sortBy] || 'creative.name';
+			if (sortBy === 'aiScore') {
+				qb.orderBy(sortColumn, sortOrder, 'NULLS LAST');
+			} else {
+				qb.orderBy(sortColumn, sortOrder);
+			}
+		}
+
+		const page = query.page || 1;
+		const limit = Math.min(query.limit || 20, 100);
+		qb.skip((page - 1) * limit).take(limit);
+
+		const creatives = await qb.getMany();
+
+		// Campaign va AdSet nomlarini batch olish
+		const campaignNameMap = new Map<string, string>();
+		const adSetNameMap = new Map<string, string>();
+
+		if (creatives.length > 0) {
+			const campaignIds = [...new Set(creatives.map((c) => c.metaCampaignId))];
+			const adSetIds = [...new Set(creatives.map((c) => c.metaAdSetId))];
+
+			const [campaigns, adSets] = await Promise.all([
+				this.campaignRepo
+					.createQueryBuilder('c')
+					.select(['c.metaCampaignId', 'c.name'])
+					.where('c.brandId = :brandId', { brandId })
+					.andWhere('c.metaCampaignId IN (:...campaignIds)', { campaignIds })
+					.getMany(),
+				this.adSetRepo
+					.createQueryBuilder('a')
+					.select(['a.metaAdSetId', 'a.name'])
+					.where('a.brandId = :brandId', { brandId })
+					.andWhere('a.metaAdSetId IN (:...adSetIds)', { adSetIds })
+					.getMany(),
+			]);
+
+			for (const c of campaigns) campaignNameMap.set(c.metaCampaignId, c.name);
+			for (const a of adSets) adSetNameMap.set(a.metaAdSetId, a.name);
+		}
+
+		const includeStats = query.includeStats !== 'false';
+		let data: CreativeResponse[];
+
+		if (includeStats && creatives.length > 0) {
+			const adIds = creatives.map((c) => c.metaAdId);
+
+			const statsQb = this.dailyStatsRepo
+				.createQueryBuilder('stats')
+				.select('stats.metaAdId', 'adId')
+				.addSelect('SUM(stats.spend)', 'totalSpend')
+				.addSelect('SUM(stats.impressions)', 'totalImpressions')
+				.addSelect('SUM(stats.clicks)', 'totalClicks')
+				.addSelect('SUM(stats.linkClicks)', 'totalLinkClicks')
+				.addSelect('SUM(stats.purchases)', 'totalPurchases')
+				.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+				.where('stats.brandId = :brandId', { brandId })
+				.andWhere('stats.metaAdId IN (:...adIds)', { adIds })
+				.groupBy('stats.metaAdId');
+
+			if (query.startDate) {
+				statsQb.andWhere('stats.date >= :startDate', { startDate: query.startDate });
+			}
+			if (query.endDate) {
+				statsQb.andWhere('stats.date <= :endDate', { endDate: query.endDate });
+			}
+
+			const statsRaw = await statsQb.getRawMany();
+
+			const statsMap = new Map<string, CampaignStats>();
+			for (const row of statsRaw) {
+				const spend = parseFloat(row.totalSpend) || 0;
+				const impressions = parseInt(row.totalImpressions) || 0;
+				const clicks = parseInt(row.totalClicks) || 0;
+				const linkClicks = parseInt(row.totalLinkClicks) || 0;
+				const purchases = parseInt(row.totalPurchases) || 0;
+				const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+				statsMap.set(row.adId, {
+					totalSpend: parseFloat(spend.toFixed(2)),
+					totalImpressions: impressions,
+					totalClicks: clicks,
+					totalLinkClicks: linkClicks,
+					totalPurchases: purchases,
+					totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+					cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+					cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+					ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+					roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+					costPerPurchase: purchases > 0 ? parseFloat((spend / purchases).toFixed(2)) : 0,
+				});
+			}
+
+			const defaultStats: CampaignStats = {
+				totalSpend: 0,
+				totalImpressions: 0,
+				totalClicks: 0,
+				totalLinkClicks: 0,
+				totalPurchases: 0,
+				totalPurchaseValue: 0,
+				cpc: 0,
+				cpm: 0,
+				ctr: 0,
+				roas: 0,
+				costPerPurchase: 0,
+			};
+
+			data = creatives.map((c) => ({
+				...this.toCreativeResponse(c, campaignNameMap, adSetNameMap),
+				stats: statsMap.get(c.metaAdId) || defaultStats,
+			}));
+
+			if (sortBy === 'spend') {
+				data.sort((a, b) => {
+					const diff = (a.stats?.totalSpend || 0) - (b.stats?.totalSpend || 0);
+					return sortOrder === 'DESC' ? -diff : diff;
+				});
+			} else if (sortBy === 'roas') {
+				data.sort((a, b) => {
+					const diff = (a.stats?.roas || 0) - (b.stats?.roas || 0);
+					return sortOrder === 'DESC' ? -diff : diff;
+				});
+			}
+		} else {
+			data = creatives.map((c) => this.toCreativeResponse(c, campaignNameMap, adSetNameMap));
+		}
+
+		return {
+			data,
+			meta: {
+				total,
+				page,
+				limit,
+				totalPages: Math.ceil(total / limit),
+			},
+		};
+	}
+
+	private toCreativeResponse(
+		creative: MetaAdCreative,
+		campaignNameMap: Map<string, string>,
+		adSetNameMap: Map<string, string>,
+	): CreativeResponse {
+		return {
+			id: creative.id,
+			metaAdId: creative.metaAdId,
+			metaCreativeId: creative.metaCreativeId || null,
+			metaCampaignId: creative.metaCampaignId,
+			metaAdSetId: creative.metaAdSetId,
+			campaignName: campaignNameMap.get(creative.metaCampaignId) || null,
+			adSetName: adSetNameMap.get(creative.metaAdSetId) || null,
+			name: creative.name,
+			status: creative.status,
+			headline: creative.headline || null,
+			body: creative.body || null,
+			description: creative.description || null,
+			imageUrl: creative.imageUrl || null,
+			videoUrl: creative.videoUrl || null,
+			videoId: creative.videoId || null,
+			callToAction: creative.callToAction || null,
+			destinationUrl: creative.destinationUrl || null,
+			format: creative.format || null,
+			aiScore: creative.aiScore || null,
+			aiInsight: creative.aiInsight || null,
+			aiScoredAt: creative.aiScoredAt || null,
+			staticEngineGenerationId: creative.staticEngineGenerationId || null,
+			createdAt: creative.createdAt,
 		};
 	}
 

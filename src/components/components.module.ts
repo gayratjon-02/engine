@@ -7,6 +7,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { PnlModule } from './pnl/pnl.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { MetaModule } from './meta/meta.module';
 
 @Module({
 	imports: [
@@ -18,6 +19,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 		ShopifyModule,
 		PnlModule,
 		DashboardModule,
+		MetaModule,
 	],
 })
 export class ComponentsModule {}

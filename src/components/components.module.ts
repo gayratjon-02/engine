@@ -8,6 +8,7 @@ import { ShopifyModule } from './shopify/shopify.module';
 import { PnlModule } from './pnl/pnl.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MetaModule } from './meta/meta.module';
+import { GoogleAdsModule } from './google-ads/google-ads.module';
 
 @Module({
 	imports: [
@@ -20,6 +21,7 @@ import { MetaModule } from './meta/meta.module';
 		PnlModule,
 		DashboardModule,
 		MetaModule,
+		GoogleAdsModule,
 	],
 })
 export class ComponentsModule {}

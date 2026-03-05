@@ -15,9 +15,11 @@ import { PLATFORM, CONNECTION_STATUS } from 'src/libs/dto/enum/platform.enum';
 import { GetCampaignsQueryDto } from 'src/libs/dto/meta/get-campaigns-query.dto';
 import { GetAdSetsQueryDto } from 'src/libs/dto/meta/get-adsets-query.dto';
 import { GetCreativesQueryDto } from 'src/libs/dto/meta/get-creatives-query.dto';
+import { GetStatsQueryDto } from 'src/libs/dto/meta/get-stats-query.dto';
 import type { CampaignResponse, CampaignStats, PaginatedCampaignsResponse } from 'src/libs/dto/type/meta/campaign.type';
 import type { AdSetResponse, PaginatedAdSetsResponse } from 'src/libs/dto/type/meta/adset.type';
 import type { CreativeResponse, PaginatedCreativesResponse } from 'src/libs/dto/type/meta/creative.type';
+import type { StatsSummaryResponse, GroupedStatsResponse, DateRange } from 'src/libs/dto/type/meta/stats.type';
 
 @Injectable()
 export class MetaService {
@@ -748,6 +750,316 @@ export class MetaService {
 			staticEngineGenerationId: creative.staticEngineGenerationId || null,
 			createdAt: creative.createdAt,
 		};
+	}
+
+	// ==================== STATS ====================
+
+	async getStats(
+		brandId: string,
+		userId: string,
+		query: GetStatsQueryDto,
+	): Promise<StatsSummaryResponse | GroupedStatsResponse> {
+		await this.brandService.getBrand(userId, brandId);
+
+		const endDate = query.endDate || new Date().toISOString().split('T')[0];
+		const startDate =
+			query.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+		const days =
+			Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+		const dateRange: DateRange = { startDate, endDate, days };
+
+		const baseQb = this.dailyStatsRepo
+			.createQueryBuilder('stats')
+			.where('stats.brandId = :brandId', { brandId })
+			.andWhere('stats.date >= :startDate', { startDate })
+			.andWhere('stats.date <= :endDate', { endDate });
+
+		if (query.campaignId) {
+			baseQb.andWhere('stats.metaCampaignId = :campaignId', { campaignId: query.campaignId });
+		}
+		if (query.adSetId) {
+			baseQb.andWhere('stats.metaAdSetId = :adSetId', { adSetId: query.adSetId });
+		}
+
+		if (query.groupBy === 'day') return this.getStatsByDay(baseQb.clone(), dateRange);
+		if (query.groupBy === 'campaign') return this.getStatsByCampaign(baseQb.clone(), brandId, dateRange);
+		if (query.groupBy === 'adset') return this.getStatsByAdSet(baseQb.clone(), brandId, dateRange);
+		if (query.groupBy === 'ad') return this.getStatsByAd(baseQb.clone(), brandId, dateRange);
+
+		return this.getStatsSummary(baseQb.clone(), dateRange);
+	}
+
+	private async getStatsSummary(
+		qb: any,
+		dateRange: DateRange,
+	): Promise<StatsSummaryResponse> {
+		const result = await qb
+			.select('SUM(stats.spend)', 'totalSpend')
+			.addSelect('SUM(stats.impressions)', 'totalImpressions')
+			.addSelect('SUM(stats.clicks)', 'totalClicks')
+			.addSelect('SUM(stats.linkClicks)', 'totalLinkClicks')
+			.addSelect('SUM(stats.reach)', 'totalReach')
+			.addSelect('SUM(stats.purchases)', 'totalPurchases')
+			.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+			.addSelect('SUM(stats.addToCart)', 'totalAddToCart')
+			.addSelect('SUM(stats.initiateCheckout)', 'totalInitiateCheckout')
+			.getRawOne();
+
+		const spend = parseFloat(result.totalSpend) || 0;
+		const impressions = parseInt(result.totalImpressions) || 0;
+		const clicks = parseInt(result.totalClicks) || 0;
+		const linkClicks = parseInt(result.totalLinkClicks) || 0;
+		const purchases = parseInt(result.totalPurchases) || 0;
+		const purchaseValue = parseFloat(result.totalPurchaseValue) || 0;
+		const addToCart = parseInt(result.totalAddToCart) || 0;
+		const initiateCheckout = parseInt(result.totalInitiateCheckout) || 0;
+
+		return {
+			summary: {
+				totalSpend: parseFloat(spend.toFixed(2)),
+				totalImpressions: impressions,
+				totalClicks: clicks,
+				totalLinkClicks: linkClicks,
+				totalReach: parseInt(result.totalReach) || 0,
+				totalPurchases: purchases,
+				totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+				totalAddToCart: addToCart,
+				totalInitiateCheckout: initiateCheckout,
+			},
+			calculated: {
+				cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+				cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+				ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+				metaRoas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+				costPerPurchase: purchases > 0 ? parseFloat((spend / purchases).toFixed(2)) : 0,
+				conversionRate: clicks > 0 ? parseFloat(((purchases / clicks) * 100).toFixed(2)) : 0,
+				addToCartRate: clicks > 0 ? parseFloat(((addToCart / clicks) * 100).toFixed(2)) : 0,
+				checkoutRate: clicks > 0 ? parseFloat(((initiateCheckout / clicks) * 100).toFixed(2)) : 0,
+			},
+			dateRange,
+		};
+	}
+
+	private async getStatsByDay(qb: any, dateRange: DateRange): Promise<GroupedStatsResponse> {
+		const rows = await qb
+			.select('stats.date', 'date')
+			.addSelect('SUM(stats.spend)', 'totalSpend')
+			.addSelect('SUM(stats.impressions)', 'totalImpressions')
+			.addSelect('SUM(stats.clicks)', 'totalClicks')
+			.addSelect('SUM(stats.linkClicks)', 'totalLinkClicks')
+			.addSelect('SUM(stats.purchases)', 'totalPurchases')
+			.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+			.groupBy('stats.date')
+			.orderBy('stats.date', 'ASC')
+			.getRawMany();
+
+		const data = rows.map((row: any) => {
+			const spend = parseFloat(row.totalSpend) || 0;
+			const impressions = parseInt(row.totalImpressions) || 0;
+			const clicks = parseInt(row.totalClicks) || 0;
+			const purchases = parseInt(row.totalPurchases) || 0;
+			const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+			return {
+				date: row.date,
+				totalSpend: parseFloat(spend.toFixed(2)),
+				totalImpressions: impressions,
+				totalClicks: clicks,
+				totalLinkClicks: parseInt(row.totalLinkClicks) || 0,
+				totalPurchases: purchases,
+				totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+				cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+				cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+				ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+				roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+			};
+		});
+
+		return { data, dateRange };
+	}
+
+	private async getStatsByCampaign(
+		qb: any,
+		brandId: string,
+		dateRange: DateRange,
+	): Promise<GroupedStatsResponse> {
+		const rows = await qb
+			.select('stats.metaCampaignId', 'metaCampaignId')
+			.addSelect('SUM(stats.spend)', 'totalSpend')
+			.addSelect('SUM(stats.impressions)', 'totalImpressions')
+			.addSelect('SUM(stats.clicks)', 'totalClicks')
+			.addSelect('SUM(stats.purchases)', 'totalPurchases')
+			.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+			.groupBy('stats.metaCampaignId')
+			.getRawMany();
+
+		const campaignIds = rows.map((r: any) => r.metaCampaignId).filter(Boolean);
+		const campaignNameMap = new Map<string, string>();
+
+		if (campaignIds.length > 0) {
+			const campaigns = await this.campaignRepo
+				.createQueryBuilder('c')
+				.select(['c.metaCampaignId', 'c.name'])
+				.where('c.brandId = :brandId', { brandId })
+				.andWhere('c.metaCampaignId IN (:...campaignIds)', { campaignIds })
+				.getMany();
+			for (const c of campaigns) campaignNameMap.set(c.metaCampaignId, c.name);
+		}
+
+		const data = rows
+			.map((row: any) => {
+				const spend = parseFloat(row.totalSpend) || 0;
+				const impressions = parseInt(row.totalImpressions) || 0;
+				const clicks = parseInt(row.totalClicks) || 0;
+				const purchases = parseInt(row.totalPurchases) || 0;
+				const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+				return {
+					metaCampaignId: row.metaCampaignId,
+					campaignName: campaignNameMap.get(row.metaCampaignId) || 'Unknown Campaign',
+					totalSpend: parseFloat(spend.toFixed(2)),
+					totalImpressions: impressions,
+					totalClicks: clicks,
+					totalPurchases: purchases,
+					totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+					cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+					cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+					ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+					roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+				};
+			})
+			.sort((a: any, b: any) => b.totalSpend - a.totalSpend);
+
+		return { data, dateRange };
+	}
+
+	private async getStatsByAdSet(
+		qb: any,
+		brandId: string,
+		dateRange: DateRange,
+	): Promise<GroupedStatsResponse> {
+		const rows = await qb
+			.select('stats.metaAdSetId', 'metaAdSetId')
+			.addSelect('stats.metaCampaignId', 'metaCampaignId')
+			.addSelect('SUM(stats.spend)', 'totalSpend')
+			.addSelect('SUM(stats.impressions)', 'totalImpressions')
+			.addSelect('SUM(stats.clicks)', 'totalClicks')
+			.addSelect('SUM(stats.purchases)', 'totalPurchases')
+			.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+			.groupBy('stats.metaAdSetId')
+			.addGroupBy('stats.metaCampaignId')
+			.getRawMany();
+
+		const adSetIds = rows.map((r: any) => r.metaAdSetId).filter(Boolean);
+		const adSetNameMap = new Map<string, string>();
+		const campaignNameMap = new Map<string, string>();
+
+		if (adSetIds.length > 0) {
+			const [adSets, campaigns] = await Promise.all([
+				this.adSetRepo
+					.createQueryBuilder('a')
+					.select(['a.metaAdSetId', 'a.name'])
+					.where('a.brandId = :brandId', { brandId })
+					.andWhere('a.metaAdSetId IN (:...adSetIds)', { adSetIds })
+					.getMany(),
+				this.campaignRepo
+					.createQueryBuilder('c')
+					.select(['c.metaCampaignId', 'c.name'])
+					.where('c.brandId = :brandId', { brandId })
+					.andWhere(
+						'c.metaCampaignId IN (:...campaignIds)',
+						{ campaignIds: [...new Set(rows.map((r: any) => r.metaCampaignId).filter(Boolean))] },
+					)
+					.getMany(),
+			]);
+			for (const a of adSets) adSetNameMap.set(a.metaAdSetId, a.name);
+			for (const c of campaigns) campaignNameMap.set(c.metaCampaignId, c.name);
+		}
+
+		const data = rows
+			.map((row: any) => {
+				const spend = parseFloat(row.totalSpend) || 0;
+				const impressions = parseInt(row.totalImpressions) || 0;
+				const clicks = parseInt(row.totalClicks) || 0;
+				const purchases = parseInt(row.totalPurchases) || 0;
+				const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+				return {
+					metaAdSetId: row.metaAdSetId,
+					metaCampaignId: row.metaCampaignId,
+					adSetName: adSetNameMap.get(row.metaAdSetId) || 'Unknown Ad Set',
+					campaignName: campaignNameMap.get(row.metaCampaignId) || 'Unknown Campaign',
+					totalSpend: parseFloat(spend.toFixed(2)),
+					totalImpressions: impressions,
+					totalClicks: clicks,
+					totalPurchases: purchases,
+					totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+					cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+					cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+					ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+					roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+				};
+			})
+			.sort((a: any, b: any) => b.totalSpend - a.totalSpend);
+
+		return { data, dateRange };
+	}
+
+	private async getStatsByAd(
+		qb: any,
+		brandId: string,
+		dateRange: DateRange,
+	): Promise<GroupedStatsResponse> {
+		const rows = await qb
+			.select('stats.metaAdId', 'metaAdId')
+			.addSelect('SUM(stats.spend)', 'totalSpend')
+			.addSelect('SUM(stats.impressions)', 'totalImpressions')
+			.addSelect('SUM(stats.clicks)', 'totalClicks')
+			.addSelect('SUM(stats.purchases)', 'totalPurchases')
+			.addSelect('SUM(stats.purchaseValue)', 'totalPurchaseValue')
+			.groupBy('stats.metaAdId')
+			.getRawMany();
+
+		const adIds = rows.map((r: any) => r.metaAdId).filter(Boolean);
+		const adNameMap = new Map<string, string>();
+
+		if (adIds.length > 0) {
+			const creatives = await this.creativeRepo
+				.createQueryBuilder('c')
+				.select(['c.metaAdId', 'c.name'])
+				.where('c.brandId = :brandId', { brandId })
+				.andWhere('c.metaAdId IN (:...adIds)', { adIds })
+				.getMany();
+			for (const c of creatives) adNameMap.set(c.metaAdId, c.name);
+		}
+
+		const data = rows
+			.map((row: any) => {
+				const spend = parseFloat(row.totalSpend) || 0;
+				const impressions = parseInt(row.totalImpressions) || 0;
+				const clicks = parseInt(row.totalClicks) || 0;
+				const purchases = parseInt(row.totalPurchases) || 0;
+				const purchaseValue = parseFloat(row.totalPurchaseValue) || 0;
+
+				return {
+					metaAdId: row.metaAdId,
+					adName: adNameMap.get(row.metaAdId) || 'Unknown Ad',
+					totalSpend: parseFloat(spend.toFixed(2)),
+					totalImpressions: impressions,
+					totalClicks: clicks,
+					totalPurchases: purchases,
+					totalPurchaseValue: parseFloat(purchaseValue.toFixed(2)),
+					cpc: clicks > 0 ? parseFloat((spend / clicks).toFixed(2)) : 0,
+					cpm: impressions > 0 ? parseFloat(((spend / impressions) * 1000).toFixed(2)) : 0,
+					ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+					roas: spend > 0 ? parseFloat((purchaseValue / spend).toFixed(2)) : 0,
+				};
+			})
+			.sort((a: any, b: any) => b.totalSpend - a.totalSpend);
+
+		return { data, dateRange };
 	}
 
 	// ==================== META SYNC ====================
